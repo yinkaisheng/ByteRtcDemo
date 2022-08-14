@@ -652,7 +652,6 @@ class UserInfo:
     def __init__(self, uid: str, extra_info: str = None):
         self.uid = uid  # [a-zA-Z0-9_@\-]{1,128}
         self.extra_info = extra_info  # max 200 size
-        self._extra_info = extra_info.encode() if extra_info else None
 
     def __str__(self) -> str:
         return f'{self.__class__.__name__}(uid={self.uid}, extra_info={self.extra_info})'
@@ -662,7 +661,7 @@ class UserInfo:
     def toStruct(self) -> StructUserInfo:
         sUserInfo = StructUserInfo()
         sUserInfo.uid = self.uid.encode()
-        sUserInfo.extra_info = self._extra_info
+        sUserInfo.extra_info = self.extra_info.encode()
         return sUserInfo
 
 
@@ -909,7 +908,7 @@ RTCEventCFuncCallback = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.c_int64, 
 
 
 class IRTCRoomEventHandler:
-    def onRoomEventHappen(self, event_time: int, event_name: str, event_json: str, event: dict) -> None:
+    def onRTCRoomEventHappen(self, event_time: int, event_name: str, event_json: str, event: dict) -> None:
         """
         event_time: micro seconds since epoch
         """
@@ -917,7 +916,7 @@ class IRTCRoomEventHandler:
 
 
 class IRTCVideoEventHandler:
-    def onVideoEventHappen(self, event_time: int, event_name: str, event_json: str, event: dict) -> None:
+    def onRTCVideoEventHappen(self, event_time: int, event_name: str, event_json: str, event: dict) -> None:
         """
         event_time: micro seconds since epoch
         """
@@ -948,7 +947,7 @@ class RTCRoom:
         event = json.loads(event_json)
         self.__modifyEventIfHasEnum(event_name, event)
         if self.roomEventHandler:
-            self.roomEventHandler.onRoomEventHappen(event_time, event_name, event_json, event)
+            self.roomEventHandler.onRTCRoomEventHappen(event_time, event_name, event_json, event)
 
     @APITime
     def destroy(self) -> None:
@@ -1099,7 +1098,7 @@ class RTCVideo:
         event = json.loads(event_json)
         self.__modifyEventIfHasEnum(event_name, event)
         if self.videoEventHandler:
-            self.videoEventHandler.onVideoEventHappen(event_time, event_name, event_json, event)
+            self.videoEventHandler.onRTCVideoEventHappen(event_time, event_name, event_json, event)
 
     @ APITime
     def destroy(self) -> None:
