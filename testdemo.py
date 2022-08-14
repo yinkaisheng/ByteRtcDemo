@@ -5,8 +5,13 @@ import sys
 import time
 import json
 import ctypes
+import subprocess
+from bytertcsdk import config
+config.APILogPath = 'api_records.log'
 from bytertcsdk import bytertcsdk as sdk
 import util
+sys.path.append('../automation')
+from uiautomation import uiautomation as auto
 
 
 class RTCRoomEventHandler:
@@ -21,18 +26,28 @@ class RTCVideoEventHandler:
         pass
 
 
-def main():
+def main(isCameraCapture: bool = True):
     if sys.stdout:
-        input('paused\n')
+        input('----\npaused\n----')
+    controlPan = auto.WindowControl(searchDepth=1, SubName='控制面板\\')
+    handle = 0
+    if not controlPan.Exists(0, 0):
+        subprocess.Popen('control')
+        if controlPan.Exists(2, 0.5):
+            handle = controlPan.NativeWindowHandle
+        else:
+            print('open control failed')
+    else:
+        controlPan.SetActive()
+        handle = controlPan.NativeWindowHandle
     sdk.chooseSdkBinDir('binx86_3.43.102')
     videoEventHandler = RTCVideoEventHandler()
     rtcVideo = sdk.RTCVideo(app_id='62e52104c0700a038dd110cc', event_handler=videoEventHandler)
     print(rtcVideo)
     time.sleep(1)
 
-    rtcVideo.startAudioCapture()
-    localCanvas = sdk.VideoCanvas(view=0x00808A6, render_mode=sdk.RenderMode.Hidden, background_color=0x000000)
-    isCameraCapture = 1
+    # rtcVideo.startAudioCapture()
+    localCanvas = sdk.VideoCanvas(view=handle, render_mode=sdk.RenderMode.Hidden, background_color=0x000000)
     videoSolu = sdk.VideoSolution()
     if isCameraCapture:
         rtcVideo.setLocalVideoCanvas(sdk.StreamIndex.Main, localCanvas)
@@ -40,7 +55,7 @@ def main():
         videoSolu.height = 360
         videoSolu.fps = 15
         videoSolu.max_send_kbps = 1000
-        rtcVideo.setVideoEncoderConfig(sdk.StreamIndex.Main, [videoSolu])
+        #rtcVideo.setVideoEncoderConfig(sdk.StreamIndex.Main, [videoSolu])
         rtcVideo.startVideoCapture()
     else:
         rtcVideo.setLocalVideoCanvas(sdk.StreamIndex.Screen, localCanvas)
@@ -60,8 +75,8 @@ def main():
     rtcRoom = rtcVideo.createRTCRoom(roomId='sdktest')
     roomEventHandler = RTCRoomEventHandler()
     rtcRoom.setRTCRoomEventHandler(roomEventHandler)
-    userInfo = sdk.UserInfo('yks1', extra_info=None)
-    token = '00162e52104c0700a038dd110ccQQCeaqwFI9f0YqMR/mIHAHNka3Rlc3QEAHlrczEGAAAAoxH+YgEAoxH+YgIAoxH+YgMAoxH+YgQAoxH+YgUAoxH+YiAAQUQ/j0j81ufAWBUS6DlR5u5Nn1kkIlbXtURq12s3rgI='
+    userInfo = sdk.UserInfo('yinkaisheng', extra_info='{"extra_test": "HelloWorld"}')
+    token = '00162e52104c0700a038dd110ccSAD7FE4EFeD0YpUa/mIHAHNka3Rlc3QLAHlpbmthaXNoZW5nBgAAAJUa/mIBAJUa/mICAJUa/mIDAJUa/mIEAJUa/mIFAJUa/mIgANRMfZXevxZ4/1PRVavybItNg40FmgHB+MJ16uP3/ho6'
     roomConfig = sdk.RTCRoomConfig()
     roomConfig.room_profile_type = sdk.RoomProfileType.Communication
     roomConfig.is_auto_publish = True
@@ -75,8 +90,9 @@ def main():
         rtcRoom.publishStream(sdk.MediaStreamType.Both)
     else:
         rtcRoom.publishScreen(sdk.MediaStreamType.Both)
-    time.sleep(5)
+    input('----\npaused\n----')
     rtcRoom.leaveRoom()
+    time.sleep(0.5)
     rtcVideo.stopAudioCapture()
     if isCameraCapture:
         rtcVideo.stopVideoCapture()
@@ -89,6 +105,9 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    isCameraCapture = 1
+    if len(sys.argv) > 1 and sys.argv[1] == '0':
+        isCameraCapture = 0
+    main(isCameraCapture)
 
 

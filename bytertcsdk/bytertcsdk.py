@@ -1,6 +1,6 @@
 #!python3
 # -*- coding: utf-8 -*-
-# Author: yinkaisheng@foxmail.com
+# author: yinkaisheng@foxmail.com
 import os
 import sys
 import time
@@ -12,6 +12,7 @@ import logging as log
 import ctypes.wintypes
 from enum import Enum, IntEnum
 from typing import (Any, Callable, Dict, List, Iterable, Tuple)
+from .config import APILogPath
 
 ExePath = os.path.abspath(sys.argv[0])
 ExeDir, ExeNameWithExt = os.path.split(ExePath)
@@ -31,7 +32,7 @@ SdkVersion = ''  # '3.43.102'
 if not os.path.exists(LogDir):
     os.makedirs(LogDir)
 log.Formatter.default_msec_format = '%s.%03d'
-log.basicConfig(filename=os.path.join(LogDir, 'byte_rtc_sdk_py.log'), level=log.INFO,
+log.basicConfig(filename=os.path.join(LogDir, APILogPath), level=log.INFO,
                 format='%(asctime)s %(levelname)s %(filename)s L%(lineno)d T%(thread)d %(funcName)s: %(message)s')
 
 
@@ -173,6 +174,13 @@ class VideoEncodePreference(MyIntEnum):
     Framerate = 1
     Quality = 2
     Balance = 3
+
+
+class VideoStreamScaleMode(MyIntEnum):
+    Auto = 0
+    Stretch = 1
+    FitWithCropping = 2
+    FitWithFilling = 3
 
 
 class RoomProfileType(MyIntEnum):
@@ -348,6 +356,12 @@ class VideoCodecType(MyIntEnum):
     ByteVC1 = 2
 
 
+class VideoCodecMode(MyIntEnum):
+    Auto = 0
+    Hardware = 1
+    Software = 2
+
+
 class SEIStreamEventType(MyIntEnum):
     StreamAdd = 0
     StreamRemove = 1
@@ -508,6 +522,64 @@ class MouseCursorCaptureState(MyIntEnum):
 class ContentHint(MyIntEnum):
     Details = 0
     Motion = 1
+
+
+class UserOfflineReason(MyIntEnum):
+    Quit = 0
+    Dropped = 1
+    SwitchToInvisible = 2
+    KickedByAdmin = 3
+
+
+class StreamRemoveReason(MyIntEnum):
+    Unpublish = 0
+    PublishFailed = 1
+    KeepLiveFailed = 2
+    ClientDisconnected = 3
+    Republish = 4
+    Other = 5
+
+
+class SubscribeState(MyIntEnum):
+    Success = 0
+    FailedNotInRoom = 1
+    FailedStreamNotFound = 2
+    FailedOverLimit = 3
+
+
+class RtcRoomMode(MyIntEnum):
+    Normal = 0
+    AudioSelection = 1
+
+
+class AVSyncState(MyIntEnum):
+    AVStreamSyncBegin = 0
+    AudioStreamRemove = 1
+    VdieoStreamRemove = 2
+    SetAVSyncStreamId = 3
+
+
+class ForwardStreamError(MyIntEnum):
+    OK = 0
+    InvalidArgument = 1201
+    InvalidToken = 1202
+    Response = 1203
+    RemoteKicked = 1204
+    NotSupport = 1205
+
+
+class ForwardStreamState(MyIntEnum):
+    Idle = 0
+    Success = 1
+    Failure = 2
+
+
+class ForwardStreamEvent(MyIntEnum):
+    Disconnected = 0
+    Connected = 1
+    Interrupt = 2
+    DstRoomUpdated = 3
+    UnExpectAPICall = 4
 
 
 class StructVideoCanvas(ctypes.Structure):
@@ -861,6 +933,7 @@ class RTCRoom:
         self.roomEventCFuncCallback = RTCEventCFuncCallback(self.RTCRoomEventCFuncCallback)
         self.IRTCRoomEventHandler = self.dll.byte_createRTCRoomEventHandler()
         self.pIRTCRoomEventHandler = ctypes.c_void_p(self.IRTCRoomEventHandler)
+        self.dll.byte_RTCRoom_setRTCRoomEventHandler(self.pIRTCRoom, self.pIRTCRoomEventHandler)
         self.dll.byte_RTCRoomEventHandler_setCallback(self.pIRTCRoomEventHandler, self.roomEventCFuncCallback)
 
     def __str__(self) -> str:
@@ -932,8 +1005,70 @@ class RTCRoom:
             return
         self.dll.byte_RTCRoom_unpublishScreen(self.pIRTCRoom, stream_type)
 
-    def __modifyEventIfHasEnum(event_name: str, event: dict) -> None:
-        pass
+    def __modifyEventIfHasEnum(self, event_name: str, event: dict) -> None:
+        if event_name == 'onLocalStreamStats':
+            event['stats']['local_rx_quality'] = NetworkQuality(event['stats']['local_rx_quality'])
+            event['stats']['local_tx_quality'] = NetworkQuality(event['stats']['local_tx_quality'])
+            event['stats']['video_stats']['codec_type'] = VideoCodecType(event['stats']['video_stats']['codec_type'])
+        if event_name == 'onRemoteStreamStats':
+            event['stats']['remote_rx_quality'] = NetworkQuality(event['stats']['remote_rx_quality'])
+            event['stats']['remote_tx_quality'] = NetworkQuality(event['stats']['remote_tx_quality'])
+        elif event_name == 'onUserLeave':
+            event['reason'] = UserOfflineReason(event['reason'])
+        elif event_name == 'onMuteAllRemoteAudio':
+            event['mute_state'] = MuteState(event['mute_state'])
+        elif event_name == 'onMuteAllRemoteVideo':
+            event['mute_state'] = MuteState(event['mute_state'])
+        elif event_name == 'onStreamRemove':
+            event['reason'] = StreamRemoveReason(event['reason'])
+            event['stream']['max_profile']['codec_mode'] = VideoCodecMode(event['stream']['max_profile']['codec_mode'])
+            event['stream']['max_profile']['codec_name'] = VideoCodecType(event['stream']['max_profile']['codec_name'])
+            event['stream']['max_profile']['encode_preference'] = VideoEncodePreference(event['stream']['max_profile']['encode_preference'])
+            event['stream']['max_profile']['scale_mode'] = VideoStreamScaleMode(event['stream']['max_profile']['scale_mode'])
+            for i in range(event['stream']['profile_count']):
+                event['stream']['profiles'][i]['codec_mode'] = VideoCodecMode(event['stream']['profiles'][i]['codec_mode'])
+                event['stream']['profiles'][i]['codec_name'] = VideoCodecType(event['stream']['profiles'][i]['codec_name'])
+                event['stream']['profiles'][i]['encode_preference'] = VideoEncodePreference(event['stream']['profiles'][i]['encode_preference'])
+                event['stream']['profiles'][i]['scale_mode'] = VideoStreamScaleMode(event['stream']['profiles'][i]['scale_mode'])
+        elif event_name == 'onStreamAdd':
+            event['stream']['max_profile']['codec_mode'] = VideoCodecMode(event['stream']['max_profile']['codec_mode'])
+            event['stream']['max_profile']['codec_name'] = VideoCodecType(event['stream']['max_profile']['codec_name'])
+            event['stream']['max_profile']['encode_preference'] = VideoEncodePreference(event['stream']['max_profile']['encode_preference'])
+            event['stream']['max_profile']['scale_mode'] = VideoStreamScaleMode(event['stream']['max_profile']['scale_mode'])
+            for i in range(event['stream']['profile_count']):
+                event['stream']['profiles'][i]['codec_mode'] = VideoCodecMode(event['stream']['profiles'][i]['codec_mode'])
+                event['stream']['profiles'][i]['codec_name'] = VideoCodecType(event['stream']['profiles'][i]['codec_name'])
+                event['stream']['profiles'][i]['encode_preference'] = VideoEncodePreference(event['stream']['profiles'][i]['encode_preference'])
+                event['stream']['profiles'][i]['scale_mode'] = VideoStreamScaleMode(event['stream']['profiles'][i]['scale_mode'])
+        elif event_name == 'onUserPublishStream':
+            event['type'] = MediaStreamType(event['type'])
+        elif event_name == 'onUserUnpublishStream':
+            event['type'] = MediaStreamType(event['type'])
+            event['reason'] = StreamRemoveReason(event['reason'])
+        elif event_name == 'onUserPublishScreen':
+            event['type'] = MediaStreamType(event['type'])
+        elif event_name == 'onUserUnpublishScreen':
+            event['type'] = MediaStreamType(event['type'])
+            event['reason'] = StreamRemoveReason(event['reason'])
+        elif event_name == 'onStreamSubscribed':
+            event['state_code'] = SubscribeState(event['state_code'])
+        elif event_name == 'onRoomModeChanged':
+            event['mode'] = RtcRoomMode(event['mode'])
+        elif event_name == 'onAVSyncStateChange':
+            event['state'] = AVSyncState(event['state'])
+        elif event_name == 'onForwardStreamStateChanged':
+            for i in range(event['info_count']):
+                event['infos'][i]['error'] = ForwardStreamError(event['infos'][i]['error'])
+                event['infos'][i]['state'] = ForwardStreamState(event['infos'][i]['state'])
+        elif event_name == 'onForwardStreamEvent':
+            for i in range(event['info_count']):
+                event['infos'][i]['event'] = ForwardStreamEvent(event['infos'][i]['event'])
+        elif event_name == 'onNetworkQuality':
+            event['local_quality']['rx_quality'] = NetworkQuality(event['local_quality']['rx_quality'])
+            event['local_quality']['tx_quality'] = NetworkQuality(event['local_quality']['tx_quality'])
+            for i in range(event['remote_qualities_num']):
+                event['remote_qualities'][i]['rx_quality'] = ForwardStreamEvent(event['remote_qualities'][i]['rx_quality'])
+                event['remote_qualities'][i]['tx_quality'] = ForwardStreamEvent(event['remote_qualities'][i]['tx_quality'])
 
 
 class RTCVideo:
