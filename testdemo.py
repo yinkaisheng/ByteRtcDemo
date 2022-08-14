@@ -6,6 +6,7 @@ import time
 import json
 import ctypes
 import pprint
+import threading
 import subprocess
 from bytertcsdk import config
 config.APILogPath = 'api_records.log'
@@ -24,6 +25,8 @@ UserIdDict = {
 UserId = 'yks1'
 Token = UserIdDict[UserId]
 
+_ConnectedEvent = threading.Event()
+
 
 class RTCRoomEventHandler:
     def onRTCRoomEventHappen(self, event_time: int, event_name: str, event_json: str, event: dict) -> None:
@@ -34,13 +37,13 @@ class RTCRoomEventHandler:
 class RTCVideoEventHandler:
     def onRTCVideoEventHappen(self, event_time: int, event_name: str, event_json: str, event: dict) -> None:
         sdk.log.info(f'{event_name} \n{pprint.pformat(event, indent=2, width=120, compact=True, sort_dicts=False)}')
-        pass
+        if event_name == 'onConnectionStateChanged':
+            if event['state'] == sdk.ConnectionState.Connected:
+                _ConnectedEvent.set()
 
 
-def main(isCameraCapture: bool = True):
-    if sys.stdout:
-        input('----\npaused\n----')
-    controlPan = auto.WindowControl(searchDepth=1, SubName='控制面板\\')
+def getViewHandle() -> int:
+    controlPan = auto.WindowControl(searchDepth=1, ClassName='CabinetWClass', SubName='控制面板')
     handle = 0
     if not controlPan.Exists(0, 0):
         subprocess.Popen('control')
@@ -51,14 +54,30 @@ def main(isCameraCapture: bool = True):
     else:
         controlPan.SetActive()
         handle = controlPan.NativeWindowHandle
-    sdk.chooseSdkBinDir('binx86_3.43.102')
+    return handle
+
+
+def main(isCameraCapture: bool = True):
+    choices = {}
+    index = 0
+    for filePath, isDir, fileName, depth, remainCount in util.walkDir('bytertcsdk', maxDepth=1):
+        if isDir and fileName.startswith('binx'):
+            index += 1
+            choices[index] = fileName
+    tip = '\n'.join(f'{k}: {v}' for k, v in choices.items()) + f'\nselect: '
+    ret = input(tip)
+    select = int(ret)
+    adir = choices[select]
+    sdk.chooseSdkBinDir(adir)
+
     videoEventHandler = RTCVideoEventHandler()
     rtcVideo = sdk.RTCVideo(app_id=AppId, event_handler=videoEventHandler)
     print(rtcVideo)
-    time.sleep(1)
+
+    _ConnectedEvent.wait(0xFFFF)
 
     rtcVideo.startAudioCapture()
-    localCanvas = sdk.VideoCanvas(view=handle, render_mode=sdk.RenderMode.Hidden, background_color=0x000000)
+    localCanvas = sdk.VideoCanvas(view=getViewHandle(), render_mode=sdk.RenderMode.Hidden, background_color=0x000000)
     videoSolu = sdk.VideoSolution()
     if isCameraCapture:
         rtcVideo.setLocalVideoCanvas(sdk.StreamIndex.Main, localCanvas)

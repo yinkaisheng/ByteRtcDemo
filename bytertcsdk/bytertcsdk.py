@@ -1072,6 +1072,9 @@ class RTCRoom:
 
 class RTCVideo:
     def __init__(self, app_id: str, event_handler: IRTCVideoEventHandler = None, parameters: str = ''):
+        if not app_id:
+            self.IRTCVideo = 0
+            return
         self.dll = _DllClient.instance().dll
         self.videoEventHandler = event_handler
         self.videoEventCFuncCallback = RTCEventCFuncCallback(self.RTCVideoEventCFuncCallback)
