@@ -619,12 +619,12 @@ class StructVideoSolution(ctypes.Structure):
 
 
 class VideoSolution:
-    def __init__(self):
-        self.width = 0
-        self.height = 0
-        self.fps = 0
-        self.max_send_kbps = -1
-        self.encode_preference = VideoEncodePreference.Framerate
+    def __init__(self, width: int = 0, height: int = 0, fps: int = 0, max_send_kbps: int = -1, encode_preference: VideoEncodePreference = VideoEncodePreference.Framerate):
+        self.width = width
+        self.height = height
+        self.fps = fps
+        self.max_send_kbps = max_send_kbps
+        self.encode_preference = encode_preference
 
     def __str__(self) -> str:
         return f'{self.__class__.__name__}(width={self.width}, height={self.height}, fps={self.fps}, max_send_kbps={self.max_send_kbps}'    \
@@ -966,12 +966,12 @@ class RTCRoom:
         self.roomEventHandler = event_handler
 
     @APITime
-    def joinRoom(self, token: str, user_info: UserInfo, config: RTCRoomConfig) -> int:
+    def joinRoom(self, token: str, user_info: UserInfo, room_config: RTCRoomConfig) -> int:
         if not self.pIRTCRoom:
             return
         ret = self.dll.byte_RTCRoom_joinRoom(self.pIRTCRoom, token.encode(),
                                              ctypes.byref(user_info.toStruct()),
-                                             ctypes.byref(config.toStruct()))
+                                             ctypes.byref(room_config.toStruct()))
         return ret
 
     @APITime
@@ -1121,11 +1121,22 @@ class RTCVideo:
 
     @ APITime
     def setLocalVideoCanvas(self, index: StreamIndex, canvas: VideoCanvas) -> int:
+        if not self.pIRTCVideo:
+            return
         ret = self.dll.byte_RTCVideo_setLocalVideoCanvas(self.pIRTCVideo, index, ctypes.byref(canvas.toStruct()))
         return ret
 
     @ APITime
+    def setRemoteStreamVideoCanvas(self, stream_key: RemoteStreamKey, canvas: VideoCanvas) -> None:
+        if not self.pIRTCVideo:
+            return
+        self.dll.byte_RTCVideo_setRemoteStreamVideoCanvas(self.pIRTCVideo, ctypes.byref(stream_key.toStruct()),
+                                                          ctypes.byref(canvas.toStruct()))
+
+    @ APITime
     def setVideoEncoderConfig(self, index: StreamIndex, solutions: List[VideoSolution]) -> int:
+        if not self.pIRTCVideo:
+            return
         arrayType = StructVideoSolution * len(solutions)
         cSolutions = arrayType()
         for i, solu in enumerate(solutions):
@@ -1206,20 +1217,22 @@ class RTCVideo:
         self.dll.byte_RTCVideo_stopAudioCapture(self.pIRTCVideo)
 
     @ APITime
-    def createRTCRoom(self, roomId: str) -> RTCRoom:
-        IRTCRoom = self.dll.byte_RTCVideo_createRTCRoom(self.pIRTCVideo, roomId.encode())
+    def createRTCRoom(self, room_id: str) -> RTCRoom:
+        if not self.pIRTCVideo:
+            return
+        IRTCRoom = self.dll.byte_RTCVideo_createRTCRoom(self.pIRTCVideo, room_id.encode())
         if IRTCRoom:
-            if roomId in self.rooms:
-                log.info(f'createRTCRoom roomId={roomId} many times')
-                rtcRoom = self.rooms[roomId]
+            if room_id in self.rooms:
+                log.info(f'createRTCRoom room_id={room_id} many times')
+                rtcRoom = self.rooms[room_id]
                 if IRTCRoom != rtcRoom.IRTCRoom:
                     oldRoom = rtcRoom
                     # oldRoom.destroy()
                     rtcRoom = RTCRoom(IRTCRoom=IRTCRoom)
-                    self.rooms[roomId] = rtcRoom
+                    self.rooms[room_id] = rtcRoom
             else:
                 rtcRoom = RTCRoom(IRTCRoom=IRTCRoom)
-                self.rooms[roomId] = rtcRoom
+                self.rooms[room_id] = rtcRoom
             return rtcRoom
         else:
             pass
