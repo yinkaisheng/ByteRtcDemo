@@ -8,8 +8,6 @@ import ctypes
 import pprint
 import threading
 import subprocess
-from bytertcsdk import config
-config.APILogPath = 'api_records.log'
 from bytertcsdk import bytertcsdk as sdk
 import util
 sys.path.append('../automation')
@@ -20,7 +18,7 @@ RoomId = 'sdktest'
 UserIdDict = {
     'yks1': '00162e52104c0700a038dd110ccQQCeaqwFI9f0YqMR/mIHAHNka3Rlc3QEAHlrczEGAAAAoxH+YgEAoxH+YgIAoxH+YgMAoxH+YgQAoxH+YgUAoxH+YiAAQUQ/j0j81ufAWBUS6DlR5u5Nn1kkIlbXtURq12s3rgI=',
     'yks2': '00162e52104c0700a038dd110ccQQANWg4CR9f0YscR/mIHAHNka3Rlc3QEAHlrczIGAAAAxxH+YgEAxxH+YgIAxxH+YgMAxxH+YgQAxxH+YgUAxxH+YiAAdddXe3ChDksV8/BBsgKDP3TAmuMTe6pvsGSPZ4L0jGk=',
-    'yinkaisheng': '00162e52104c0700a038dd110ccSAD7FE4EFeD0YpUa/mIHAHNka3Rlc3QLAHlpbmthaXNoZW5nBgAAAJUa/mIBAJUa/mICAJUa/mIDAJUa/mIEAJUa/mIFAJUa/mIgANRMfZXevxZ4/1PRVavybItNg40FmgHB+MJ16uP3/ho6',
+    'yinkaisheng': '00162e52104c0700a038dd110ccSAA4ZlYCgw37YgNIBGMHAHNka3Rlc3QLAHlpbmthaXNoZW5nBgAAAANIBGMBAANIBGMCAANIBGMDAANIBGMEAANIBGMFAANIBGMgAK+35d0UnwTypbx2DcAI4fEf/aARa7ygQKrp7L8Ph8OY',
 }
 UserId = 'yks1'
 Token = UserIdDict[UserId]
@@ -70,6 +68,9 @@ def main(isCameraCapture: bool = True):
     adir = choices[select]
     sdk.chooseSdkBinDir(adir)
 
+    if adir.endswith('dev'):
+        os.add_dll_directory(r'C:\Users\Admin\Codes\CPP\ByteRTC\build_win\Debug')
+
     videoEventHandler = RTCVideoEventHandler()
     rtcVideo = sdk.RTCVideo(app_id=AppId, event_handler=videoEventHandler)
     print(rtcVideo)
@@ -77,6 +78,11 @@ def main(isCameraCapture: bool = True):
     _ConnectedEvent.wait(0xFFFF)
 
     rtcVideo.startAudioCapture()
+    vdm = rtcVideo.getVideoDeviceManager()
+    if vdm:
+        vdm.getDeviceList()
+        vdm.getDeviceInfoList()
+
     localCanvas = sdk.VideoCanvas(view=getViewHandle(), render_mode=sdk.RenderMode.Hidden, background_color=0x000000)
     videoSolu = sdk.VideoSolution()
     if isCameraCapture:
@@ -102,7 +108,7 @@ def main(isCameraCapture: bool = True):
             captureParams = sdk.ScreenCaptureParameters()
             #captureParams.region_rect = sdk.Rectangle(x=0, y=0, width=1920, height=1080)
             rtcVideo.startScreenVideoCapture(source_info=sourceInfo, capture_params=captureParams)
-    rtcRoom = rtcVideo.createRTCRoom(roomId=RoomId)
+    rtcRoom = rtcVideo.createRTCRoom(room_id=RoomId)
     roomEventHandler = RTCRoomEventHandler()
     rtcRoom.setRTCRoomEventHandler(roomEventHandler)
     userInfo = sdk.UserInfo(UserId, extra_info='{"extra_info_key": "HelloWorld"}')
@@ -114,7 +120,7 @@ def main(isCameraCapture: bool = True):
     #roomConfig.remote_video_config.framerate = 15
     #roomConfig.remote_video_config.resolution_width = 640
     #roomConfig.remote_video_config.resolution_height = 360
-    rtcRoom.joinRoom(token=Token, user_info=userInfo, config=roomConfig)
+    rtcRoom.joinRoom(token=Token, user_info=userInfo, room_config=roomConfig)
     if isCameraCapture:
         rtcRoom.publishStream(sdk.MediaStreamType.Both)
     else:

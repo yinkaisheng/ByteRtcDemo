@@ -16,8 +16,6 @@ import threading
 import traceback
 import subprocess
 from typing import Any, Callable, Dict, List, Tuple
-import util
-from bytertcsdk import bytertcsdk as sdk
 from PyQt5.QtCore import QObject, QThread, QTimer, Qt, pyqtSignal
 from PyQt5.QtGui import QCloseEvent, QColor, QContextMenuEvent, QCursor, QFont, QIcon, QIntValidator, QKeyEvent, QMouseEvent, QPainter, QPixmap, QTextCursor, QTextOption
 from PyQt5.QtWidgets import QAction, QApplication, QDesktopWidget, QDialog, QInputDialog, QMainWindow, QMenu, QMessageBox, QWidget, qApp
@@ -25,14 +23,21 @@ from PyQt5.QtWidgets import QCheckBox, QComboBox, QLabel, QLineEdit, QListView, 
 from PyQt5.QtWidgets import QGridLayout, QHBoxLayout, QLayout, QSplitter, QVBoxLayout
 from QCodeEditor import QCodeEditor
 import pyqt5AsyncTask as astask
+import util
+from bytertcsdk import bytertcsdk as sdk
 
-
-DPIScale = util.getDpiScale()
+UseQtDPIScaling = 0
+if UseQtDPIScaling:
+    QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
+    #QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
+    DPIScale = 1
+else:
+    DPIScale = util.getDpiScale()
 ButtonHeight = 28
 ComboxHeight = ButtonHeight - 2
 ComboxItemHeight = ComboxHeight - 2
 EditHeight = ButtonHeight - 2
-DemoTile = 'ByteRtcDemo'
+DemoTitle = 'ByteRtcDemo'
 IcoPath = os.path.join(sdk.ExeDir, 'volcengine.ico')
 RtcVideo = None
 SDKDllName = 'ByteRTCPythonSDK.dll'
@@ -146,6 +151,8 @@ class TipDlg(QDialog):
         self.timer.stop()
         self.timer.start(self.tipTime)
         if msg:
+            if msg != self.tipLabel.text():
+                self.tipLabel.resize(dpiSize(200), dpiSize(100))
             self.tipLabel.setText(msg)
         self.show()
         #need raise_ and activateWindow if dialog is already shown, otherwise codeDlg won't active
@@ -361,6 +368,7 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         self.viewUsingIndex = set()
         self.viewCount = 0
         self.uid2ViewIndex = {}  # does not have key 0, local uid is the real uid when join successfully
+        self.clearViewIndexs = []
         self.maximizedVideoLabelIndex = -1
         self.menuShowOnVideoLableIndex = -1
         self.mousePressOnVideoLabelIndex = -1
@@ -390,7 +398,7 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         return exec(code)
 
     def createUI(self) -> None:
-        self.setWindowTitle(DemoTile)
+        self.setWindowTitle(DemoTitle)
         self.setWindowIcon(QIcon(IcoPath))
         self.resize(dpiSize(1280), dpiSize(600))
         self.intValidator = QIntValidator()
@@ -436,7 +444,7 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         appNameLabel = QLabel('AppName:')
         hLayout.addWidget(appNameLabel)
         self.appNameCombox = QComboBox()
-        self.appNameCombox.setMinimumWidth(dpiSize(150))
+        self.appNameCombox.setMinimumWidth(dpiSize(120))
         self.appNameCombox.setMinimumHeight(dpiSize(ComboxHeight))
         self.appNameCombox.setStyleSheet('QAbstractItemView::item {height: %dpx;}' % dpiSize(ComboxItemHeight))
         self.appNameCombox.setView(QListView())
@@ -503,18 +511,21 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         self.widthEdit = QLineEdit('640')
         self.widthEdit.setMaximumWidth(dpiSize(40))
         self.widthEdit.setMinimumHeight(dpiSize(EditHeight))
+        self.widthEdit.setValidator(self.intValidator)
         hLayout.addWidget(self.widthEdit)
         heightLabel = QLabel('Width:')
         hLayout.addWidget(heightLabel)
         self.heightEdit = QLineEdit('360')
         self.heightEdit.setMaximumWidth(dpiSize(40))
         self.heightEdit.setMinimumHeight(dpiSize(EditHeight))
+        self.heightEdit.setValidator(self.intValidator)
         hLayout.addWidget(self.heightEdit)
         fpsLabel = QLabel('FPS:')
         hLayout.addWidget(fpsLabel)
         self.fpsEdit = QLineEdit('15')
         self.fpsEdit.setMaximumWidth(dpiSize(30))
         self.fpsEdit.setMinimumHeight(dpiSize(EditHeight))
+        self.fpsEdit.setValidator(self.intValidator)
         hLayout.addWidget(self.fpsEdit)
         hLayout.addStretch(1)
         bitrateLabel = QLabel('Bitrate:')
@@ -522,6 +533,7 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         self.bitrateEdit = QLineEdit('-1')
         self.bitrateEdit.setMaximumWidth(dpiSize(40))
         self.bitrateEdit.setMinimumHeight(dpiSize(EditHeight))
+        self.bitrateEdit.setValidator(self.intValidator)
         hLayout.addWidget(self.bitrateEdit)
         hLayout.addStretch(1)
 
@@ -543,7 +555,14 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         self.localViewEdit = QLineEdit()
         self.localViewEdit.setMaximumWidth(dpiSize(120))
         self.localViewEdit.setMinimumHeight(dpiSize(ButtonHeight))
+        self.localViewEdit.setToolTip('Local View Handle')
         hLayout.addWidget(self.localViewEdit)
+        vdmBtn = QPushButton('VDM')
+        vdmBtn.setMaximumWidth(dpiSize(50))
+        vdmBtn.setMinimumHeight(dpiSize(ButtonHeight))
+        vdmBtn.clicked.connect(self.onClickVDMBtn)
+        vdmBtn.setToolTip('VideoDeviceManager')
+        hLayout.addWidget(vdmBtn)
 
         #----
         hLayout = QHBoxLayout()
@@ -833,13 +852,11 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         pass
 
     def checkSDKResult(self, code: int) -> None:
-        if code != 0 and self.rtcVideo:
-            pass
-            #errorDesc = self.rtcVideo.getErrorDescription(abs(code))
-            #errorInfo = f'{agorasdk.agorasdk.LastAPICall}\n\nerror: {code}\nInfo: {errorDesc}'
-            #sdk.log.info(errorInfo)
-            #self.tipDlg.resize(200, 100)
-            #self.tipDlg.showTip(errorInfo)
+        if code != 0:
+            errorDesc = sdk.getErrorDescription(code)
+            errorInfo = f'{sdk.LastAPICall}\n\nerror: {code}\nInfo: {errorDesc}'
+            sdk.log.info(f'error {code}, error desc: {errorDesc}')
+            self.tipDlg.showTip(errorInfo)
 
     def onClickRunCode(self) -> None:
         self.codeDlg.show()
@@ -852,15 +869,16 @@ class MainWindow(QMainWindow, astask.AsyncTask):
             return
         appInfo = self.configJson['appNameList'][self.configJson['appNameIndex']]
         self.rtcVideo = sdk.RTCVideo(app_id=appInfo['appId'], event_handler=self, parameters='{"key": "value"}')
-        self.setWindowTitle(f'{DemoTile} {sdk.getVersion()}')
+        self.setWindowTitle(f'{DemoTitle}, sdk: {sdk.getVersion()}, APILog: bytesdklog/{sdk.APILogPath}')
 
     def onClickDestroyRtcVideoBtn(self) -> None:
         self.onClickLeaveRoomBtn()
         self.onClickDestroyRoomBtn()
         if self.rtcVideo:
+            self.vdm = None
             self.rtcVideo.destroy()
-            self.setWindowTitle(DemoTile)
-        self.rtcVideo = None
+            self.rtcVideo = None
+            self.setWindowTitle(DemoTitle)
 
     def onClickStartAudioCaptureBtn(self) -> None:
         if self.rtcVideo:
@@ -892,6 +910,28 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         videoCanvas = sdk.VideoCanvas(view=viewHandle, render_mode=sdk.RenderMode.Hidden, background_color=0x000000)
         self.rtcVideo.setLocalVideoCanvas(index=sdk.StreamIndex.Main, canvas=videoCanvas)
 
+    def onClickVDMBtn(self) -> None:
+        if not self.rtcVideo:
+            return
+        self.vdm = self.rtcVideo.getVideoDeviceManager()
+        if not self.vdm:
+            return
+        deviceList = self.vdm.getDeviceInfoList()
+        self.vdmActions = []
+        menu = QMenu(self)
+        for deviceInfo in deviceList:
+            action = QAction(deviceInfo.device_name)
+            action.setData(deviceInfo.device_id)
+            action.triggered.connect(self.onActionSetVideoDevice)
+            self.vdmActions.append(action)
+            menu.addAction(action)
+        menu.exec_(QCursor.pos())
+
+    def onActionSetVideoDevice(self) -> None:
+        action = self.sender()
+        if action and self.vdm:
+            self.vdm.setVideoCaptureDevice(action.data())
+
     def onClickStartVideoCaptureBtn(self) -> None:
         if self.rtcVideo:
             self.rtcVideo.startVideoCapture()
@@ -913,20 +953,24 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         userId = self.userIdEdit.text().strip()
         token = self.tokenEdit.text().strip()
         if not token:
-            userTokens = self.configJson['appNameList'][self.configJson['appNameIndex']].get(self.roomId, None)
+            userTokens = self.configJson['appNameList'][self.configJson['appNameIndex']].get(self.rtcRoom.roomId, None)
             if userTokens:
                 token = userTokens.get(userId, '')
         userInfo = sdk.UserInfo(uid=userId, extra_info='{"rtctest":"hello byte rtc"}')
-        roomConfig = sdk.RTCRoomConfig(room_profile_type=sdk.RoomProfileType.Communication)
+        roomConfig = sdk.RTCRoomConfig(room_profile_type=sdk.RoomProfileType.LiveBroadcasting)
         roomConfig.is_auto_publish = True
         roomConfig.is_auto_subscribe_audio = True
         roomConfig.is_auto_subscribe_video = True
         self.rtcRoom.joinRoom(token, user_info=userInfo, room_config=roomConfig)
+        self.roomId = self.rtcRoom.roomId
 
     def onClickLeaveRoomBtn(self) -> None:
         if self.rtcRoom and self.roomId:
             self.rtcRoom.leaveRoom()
             self.roomId = ''
+            self.resetViewsBackground(range(self.viewCount))
+            self.uid2ViewIndex.clear()
+            self.viewUsingIndex.clear()
 
     def onClickDestroyRoomBtn(self) -> None:
         if self.rtcRoom:
@@ -966,6 +1010,7 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         }
 
         self.RTCRoomEventHandler = {
+            'onRoomStateChanged': self.onRoomStateChanged,
             'onUserJoined': self.onUserJoined,
             'onUserLeave': self.onUserLeave,
 
@@ -974,6 +1019,13 @@ class MainWindow(QMainWindow, astask.AsyncTask):
     #RTCVideo Event Handler
 
     #RTCRoom Event Handler
+    def onRoomStateChanged(self, event_time: int, event_name: str, event_json: str, event: dict) -> None:
+        state = event['state']
+        if state != 0:
+            errorInfo = sdk.getErrorDescription(state)
+            sdk.log.info(f'error desc: {errorInfo}')
+            self.checkSDKResult(state)
+
     def onUserJoined(self, event_time: int, event_name: str, event_json: str, event: dict) -> None:
         if not self.rtcVideo:
             return
@@ -1048,7 +1100,7 @@ def _adjustPos(win: MainWindow):
 def _start():
     if sys.platform == 'win32':
         ctypes.windll.kernel32.SetConsoleTitleW(ctypes.c_wchar_p(
-            f'{DemoTile} 不要在命令行界面上点击，否则会使UI线程卡住, ConsoleLog: bytesdklog'))
+            f'{DemoTitle} 不要在命令行界面上点击，否则会使UI线程卡住, ConsoleLog: bytesdklog'))
     app = QApplication(sys.argv)
     win = MainWindow()
     win.show()

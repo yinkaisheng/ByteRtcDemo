@@ -12,7 +12,6 @@ import logging as log
 import ctypes.wintypes
 from enum import Enum, IntEnum
 from typing import (Any, Callable, Dict, List, Iterable, Tuple)
-from .config import APILogPath
 
 ExePath = os.path.abspath(sys.argv[0])
 ExeDir, ExeNameWithExt = os.path.split(ExePath)
@@ -28,6 +27,8 @@ SdkDirFull = os.path.join(ExeDir, SdkDir)  # d:\Codes\Python\ByteRtcDemo\bytertc
 SdkBinDir = ''  # binx86_3.43.102
 SdkBinDirFull = ''  # d:\Codes\Python\ByteRtcDemo\bytertcsdk\binx86_3.43.102
 SdkVersion = ''  # '3.43.102'
+APILogPath = f'pid{os.getpid()}_api.log'
+DEVICE_ID_LENGTH = 512
 
 if not os.path.exists(LogDir):
     os.makedirs(LogDir)
@@ -138,6 +139,8 @@ class _DllClient:
             self.dll.byte_getSDKVersion.restype = ctypes.c_char_p
             self.dll.byte_RTCVideo_getScreenCaptureSourceList.restype = ctypes.c_void_p
             self.dll.byte_RTCVideo_createRTCRoom.restype = ctypes.c_void_p
+            self.dll.byte_RTCVideo_getVideoDeviceManager.restype = ctypes.c_void_p
+            self.dll.byte_IVideoDeviceManager_enumerateVideoCaptureDevices.restype = ctypes.c_void_p
         else:
             self.dll = None
             log.error(f'Can not load dll. path={SdkBinDirFull}')
@@ -582,6 +585,16 @@ class ForwardStreamEvent(MyIntEnum):
     UnExpectAPICall = 4
 
 
+class DeviceTransportType(MyIntEnum):
+    Unknown = 0
+    BuiltIn = 1
+    BlueToothUnknownMode = 2
+    BlueToothHandsFreeMode = 3
+    BlueToothStereoMode = 4
+    DisplayAudio = 5
+    Virtual = 6
+
+
 class StructVideoCanvas(ctypes.Structure):
     _fields_ = [("view", ctypes.c_void_p),
                 ("render_mode", ctypes.c_int),
@@ -904,6 +917,32 @@ class RTCRoomConfig:
         return sRTCRoomConfig
 
 
+class StructVideoDeviceInfo(ctypes.Structure):
+    _fields_ = [("device_id", ctypes.c_char * DEVICE_ID_LENGTH),
+                ("device_name", ctypes.c_char * DEVICE_ID_LENGTH),
+                ("device_vid", ctypes.c_int64),
+                ("device_pid", ctypes.c_int64),
+                ("transport_type", ctypes.c_int),
+                ]
+
+
+class VideoDeviceInfo:
+    def __init__(self):
+        self.device_id = ''
+        self.device_name = ''
+        self.device_vid = 0
+        self.device_pid = 0
+        self.transport_type = DeviceTransportType.Unknown
+
+    def __str__(self) -> str:
+        return f'{self.__class__.__name__}(device_id={self.device_id}, device_name={self.device_name}'  \
+               f', device_vid={self.device_vid}, device_pid={self.device_pid}, transport_type={self.transport_type}'
+
+    __repr__ = __str__
+
+    #def toStruct(self) -> StructVideoDeviceInfo:
+
+
 RTCEventCFuncCallback = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.c_int64, ctypes.c_char_p, ctypes.c_char_p)
 
 
@@ -924,8 +963,9 @@ class IRTCVideoEventHandler:
 
 
 class RTCRoom:
-    def __init__(self, IRTCRoom: int):
+    def __init__(self, room_id: str, IRTCRoom: int):
         self.dll = _DllClient.instance().dll
+        self.roomId = room_id
         self.IRTCRoom = IRTCRoom
         self.pIRTCRoom = ctypes.c_void_p(self.IRTCRoom)
         self.roomEventHandler = None
@@ -1070,6 +1110,68 @@ class RTCRoom:
                 event['remote_qualities'][i]['tx_quality'] = ForwardStreamEvent(event['remote_qualities'][i]['tx_quality'])
 
 
+class VideoDeviceManager:
+    def __init__(self, ptr: int):
+        self.dll = _DllClient.instance().dll
+        self.cptr = ctypes.c_void_p(ptr)
+
+    @ APITime
+    def getVideoCaptureDevice(self) -> [str, int]:
+        '''return (deviceId, result)'''
+        arrayType = ctypes.c_char * DEVICE_ID_LENGTH
+        deviceId = arrayType()
+        ret = self.dll.byte_IVideoDeviceManager_getVideoCaptureDevice(self.cptr, deviceId)
+        return deviceId.value.decode(), ret
+
+    @ APITime
+    def setVideoCaptureDevice(self, device_id: str) -> int:
+        ret = self.dll.byte_IVideoDeviceManager_setVideoCaptureDevice(self.cptr, device_id.encode())
+        return ret
+
+    @ APITime
+    def getDeviceList(self) -> List[Tuple[str, str]]:
+        '''return a list of (deviceName, deviceId)'''
+        vdcPtr = self.dll.byte_IVideoDeviceManager_enumerateVideoCaptureDevices(self.cptr)
+        if vdcPtr == 0:
+            return []
+        cvdcPtr = ctypes.c_void_p(vdcPtr)
+        count = self.dll.byte_IVideoDeviceCollection_getCount(cvdcPtr)
+        deviceList = []
+        arrayType = ctypes.c_char * DEVICE_ID_LENGTH
+        for i in range(count):
+            deviceName = arrayType()
+            deviceId = arrayType()
+            ret = self.dll.byte_IVideoDeviceCollection_getDevice(cvdcPtr, i, deviceName, deviceId)
+            if ret == 0:
+                deviceList.append((deviceName.value.decode(), deviceId.value.decode()))
+        self.dll.byte_IVideoDeviceCollection_release(cvdcPtr)
+        cvdcPtr = None
+        return deviceList
+
+    @ APITime
+    def getDeviceInfoList(self) -> List[VideoDeviceInfo]:
+        vdcPtr = self.dll.byte_IVideoDeviceManager_enumerateVideoCaptureDevices(self.cptr)
+        if vdcPtr == 0:
+            return []
+        cvdcPtr = ctypes.c_void_p(vdcPtr)
+        count = self.dll.byte_IVideoDeviceCollection_getCount(cvdcPtr)
+        deviceList = []
+        for i in range(count):
+            sVideoDeviceInfo = StructVideoDeviceInfo()
+            ret = self.dll.byte_IVideoDeviceCollection_getDeviceInfo(cvdcPtr, i, ctypes.byref(sVideoDeviceInfo))
+            if ret == 0:
+                videoDeviceInfo = VideoDeviceInfo()
+                videoDeviceInfo.device_id = sVideoDeviceInfo.device_id.decode()
+                videoDeviceInfo.device_name = sVideoDeviceInfo.device_name.decode()
+                videoDeviceInfo.device_pid = sVideoDeviceInfo.device_pid
+                videoDeviceInfo.device_vid = sVideoDeviceInfo.device_vid
+                videoDeviceInfo.transport_type = DeviceTransportType(sVideoDeviceInfo.transport_type)
+                deviceList.append(videoDeviceInfo)
+        self.dll.byte_IVideoDeviceCollection_release(cvdcPtr)
+        cvdcPtr = None
+        return deviceList
+
+
 class RTCVideo:
     def __init__(self, app_id: str, event_handler: IRTCVideoEventHandler = None, parameters: str = ''):
         if not app_id:
@@ -1143,6 +1245,14 @@ class RTCVideo:
             cSolutions[i] = solu.toStruct()
         ret = self.dll.byte_RTCVideo_setVideoEncoderConfig(self.pIRTCVideo, index, cSolutions, len(solutions))
         return ret
+
+    @ APITime
+    def getVideoDeviceManager(self) -> VideoDeviceManager:
+        if not self.pIRTCVideo:
+            return
+        vdm = self.dll.byte_RTCVideo_getVideoDeviceManager(self.pIRTCVideo)
+        if vdm:
+            return VideoDeviceManager(vdm)
 
     @ APITime
     def startVideoCapture(self) -> None:
@@ -1228,10 +1338,10 @@ class RTCVideo:
                 if IRTCRoom != rtcRoom.IRTCRoom:
                     oldRoom = rtcRoom
                     # oldRoom.destroy()
-                    rtcRoom = RTCRoom(IRTCRoom=IRTCRoom)
+                    rtcRoom = RTCRoom(room_id=room_id, IRTCRoom=IRTCRoom)
                     self.rooms[room_id] = rtcRoom
             else:
-                rtcRoom = RTCRoom(IRTCRoom=IRTCRoom)
+                rtcRoom = RTCRoom(room_id=room_id, IRTCRoom=IRTCRoom)
                 self.rooms[room_id] = rtcRoom
             return rtcRoom
         else:
