@@ -26,6 +26,7 @@ SdkDirFull = os.path.join(ExeDir, SdkDir)  # d:\Codes\Python\ByteRtcDemo\bytertc
 # the followings must be referenced by full name, such as bytertcsdk.bytertcsdk.SdkBinDir
 SdkBinDir = ''  # binx86_3.43.102
 SdkBinDirFull = ''  # d:\Codes\Python\ByteRtcDemo\bytertcsdk\binx86_3.43.102
+SdkDllName = 'VolcEngineRTC.dll'
 SdkVersion = ''  # '3.43.102'
 APILogPath = f'pid{os.getpid()}_api.log'
 DEVICE_ID_LENGTH = 512

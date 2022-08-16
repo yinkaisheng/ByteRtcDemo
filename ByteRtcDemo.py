@@ -40,7 +40,6 @@ EditHeight = ButtonHeight - 2
 DemoTitle = 'ByteRtcDemo'
 IcoPath = os.path.join(sdk.ExeDir, 'volcengine.ico')
 RtcVideo = None
-SDKDllName = 'ByteRTCPythonSDK.dll'
 DevelopDllDir = ''
 print = util.printx
 
@@ -95,17 +94,18 @@ class SelectSdkDlg(QDialog):
             return
         sdkBinDir = self.sdkDirs[radio.text()]
         self.selectCallback(sdkBinDir)
-        sdkBinPath = os.path.join(sdk.SdkBinDirFull, SDKDllName)
+
+        sdkBinPath = os.path.join(sdk.SdkBinDirFull, sdk.SdkDllName)
         if not os.path.exists(sdkBinPath):
             print(f'---- {sdkBinPath} does not exist')
             #load dll in develop code path
             binDirs = util.getFileText(os.path.join(sdk.ExeDir, sdk.ExeNameNoExt + '.dllpath')).splitlines()
             for binDir in binDirs:
-                binPath = os.path.join(binDir, SDKDllName)
+                binPath = os.path.join(binDir, sdk.SdkDllName)
                 if os.path.exists(binPath):
                     global DevelopDllDir
                     DevelopDllDir = binDir
-                    print(f'---- add dll dir: {binDir}')
+                    sdk.log.info(f'---- user the dll dir: {binDir}')
                     os.environ["PATH"] = binDir + os.pathsep + os.environ["PATH"]
                     if sdk.isPy38OrHigher():
                         os.add_dll_directory(binDir)
