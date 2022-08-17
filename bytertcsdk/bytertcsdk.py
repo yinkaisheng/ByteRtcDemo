@@ -354,6 +354,12 @@ class RecordingErrorCode(MyIntEnum):
     Other = -3
 
 
+class CapturePreference(MyIntEnum):
+    Auto = 0
+    Manual = 1
+    AutoPerformance = 2
+
+
 class VideoCodecType(MyIntEnum):
     Unknown = 0
     H264 = 1
@@ -621,6 +627,68 @@ class VideoCanvas:
         sVideoCanvas.render_mode = self.render_mode
         sVideoCanvas.background_color = self.background_color
         return sVideoCanvas
+
+
+class StructVideoCaptureConfig(ctypes.Structure):
+    _fields_ = [("capturePreference", ctypes.c_int),
+                ("width", ctypes.c_int),
+                ("height", ctypes.c_int),
+                ("frameRate", ctypes.c_int),
+                ]
+
+
+class VideoCaptureConfig:
+    def __init__(self, capturePreference: CapturePreference = CapturePreference.Auto, width: int = 0, height: int = 0, frameRate: int = 0):
+        self.capturePreference = capturePreference
+        self.width = width
+        self.height = height
+        self.frameRate = frameRate
+
+    def __str__(self) -> str:
+        return f'{self.__class__.__name__}(capturePreference={self.capturePreference}, width={self.width}, height={self.height}, frameRate={self.frameRate}'
+
+    __repr__ = __str__
+
+    def toStruct(self) -> StructVideoCaptureConfig:
+        sVideoCaptureConfig = StructVideoCaptureConfig()
+        sVideoCaptureConfig.capturePreference = self.capturePreference
+        sVideoCaptureConfig.width = self.width
+        sVideoCaptureConfig.height = self.height
+        sVideoCaptureConfig.frameRate = self.frameRate
+        return sVideoCaptureConfig
+
+
+class StructVideoEncoderConfig(ctypes.Structure):
+    _fields_ = [("width", ctypes.c_int),
+                ("height", ctypes.c_int),
+                ("frameRate", ctypes.c_int),
+                ("maxBitrate", ctypes.c_int),
+                ("encoderPreference", ctypes.c_int),
+                ]
+
+
+class VideoEncoderConfig:
+    def __init__(self, width: int = 0, height: int = 0, frameRate: int = 0, maxBitrate: int = -1, encoderPreference: VideoEncodePreference = VideoEncodePreference.Framerate):
+        self.width = width
+        self.height = height
+        self.frameRate = frameRate
+        self.maxBitrate = maxBitrate
+        self.encoderPreference = encoderPreference
+
+    def __str__(self) -> str:
+        return f'{self.__class__.__name__}(width={self.width}, height={self.height}, frameRate={self.frameRate}, maxBitrate={self.maxBitrate}'    \
+               f', encoderPreference={self.encoderPreference}, '
+
+    __repr__ = __str__
+
+    def toStruct(self) -> StructVideoEncoderConfig:
+        sVideoEncoderConfig = StructVideoEncoderConfig()
+        sVideoEncoderConfig.width = self.width
+        sVideoEncoderConfig.height = self.height
+        sVideoEncoderConfig.frameRate = self.frameRate
+        sVideoEncoderConfig.maxBitrate = self.maxBitrate
+        sVideoEncoderConfig.encoderPreference = self.encoderPreference
+        return sVideoEncoderConfig
 
 
 class StructVideoSolution(ctypes.Structure):
@@ -1237,14 +1305,39 @@ class RTCVideo:
                                                           ctypes.byref(canvas.toStruct()))
 
     @ APITime
-    def setVideoEncoderConfig(self, index: StreamIndex, solutions: List[VideoSolution]) -> int:
+    def setVideoCaptureConfig(self, capture_config: VideoCaptureConfig) -> int:
+        if not self.pIRTCVideo:
+            return
+        ret = self.dll.byte_RTCVideo_setVideoCaptureConfig(self.pIRTCVideo, ctypes.byref(capture_config.toStruct()))
+        return ret
+
+    @ APITime
+    def setVideoEncoderConfig(self, max_solution: VideoEncoderConfig) -> int:
+        if not self.pIRTCVideo:
+            return
+        ret = self.dll.byte_RTCVideo_setVideoEncoderConfig(self.pIRTCVideo, ctypes.byref(max_solution.toStruct()))
+        return ret
+
+    @ APITime
+    def setVideoEncoderConfigList(self, channel_solutions: List[VideoEncoderConfig]) -> int:
+        if not self.pIRTCVideo:
+            return
+        arrayType = StructVideoEncoderConfig * len(channel_solutions)
+        cConfigs = arrayType()
+        for i, config in enumerate(channel_solutions):
+            cConfigs[i] = config.toStruct()
+        ret = self.dll.byte_RTCVideo_setVideoEncoderConfigList(self.pIRTCVideo, cConfigs, len(channel_solutions))
+        return ret
+
+    @ APITime
+    def setVideoEncoderConfigSolutions(self, index: StreamIndex, solutions: List[VideoSolution]) -> int:
         if not self.pIRTCVideo:
             return
         arrayType = StructVideoSolution * len(solutions)
         cSolutions = arrayType()
         for i, solu in enumerate(solutions):
             cSolutions[i] = solu.toStruct()
-        ret = self.dll.byte_RTCVideo_setVideoEncoderConfig(self.pIRTCVideo, index, cSolutions, len(solutions))
+        ret = self.dll.byte_RTCVideo_setVideoEncoderConfigSolutions(self.pIRTCVideo, index, cSolutions, len(solutions))
         return ret
 
     @ APITime

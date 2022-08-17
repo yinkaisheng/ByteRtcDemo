@@ -506,6 +506,29 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         #----
         hLayout = QHBoxLayout()
         vLayout.addLayout(hLayout)
+        self.resolutionCombox = QComboBox()
+        self.resolutionCombox.setMinimumHeight(dpiSize(ComboxHeight))
+        self.resolutionCombox.setStyleSheet('QAbstractItemView::item {height: %dpx;}' % dpiSize(ComboxItemHeight))
+        self.resolutionCombox.setView(QListView())
+        self.resolutionCombox.addItems(self.configJson["resolutionList"])
+        defaultIndex = 3   # 720P 15FPS
+        if self.configJson['defaultResolutionComboxIndex'] < self.resolutionCombox.count():
+            defaultIndex = self.configJson['defaultResolutionComboxIndex']
+        self.resolutionCombox.setCurrentIndex(defaultIndex)
+        self.resolutionCombox.currentIndexChanged.connect(self.onComboxResolutionSelectionChanged)
+        hLayout.addWidget(self.resolutionCombox)
+        self.capturePreferenceCombox = QComboBox()
+        self.capturePreferenceCombox.setToolTip('VideoCaptureConfig::CapturePreference')
+        self.capturePreferenceCombox.setMinimumHeight(dpiSize(ComboxHeight))
+        self.capturePreferenceCombox.setStyleSheet('QAbstractItemView::item {height: %dpx;}' % dpiSize(ComboxItemHeight))
+        self.capturePreferenceCombox.setView(QListView())
+        self.capturePreferenceCombox.addItems(f'{it.name} {it.value}' for it in sdk.CapturePreference)
+        hLayout.addWidget(self.capturePreferenceCombox)
+        hLayout.addStretch(1)
+
+        #----
+        hLayout = QHBoxLayout()
+        vLayout.addLayout(hLayout)
         widthLabel = QLabel('Width:')
         hLayout.addWidget(widthLabel)
         self.widthEdit = QLineEdit('640')
@@ -540,6 +563,10 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         #----
         hLayout = QHBoxLayout()
         vLayout.addLayout(hLayout)
+        setVideoCaptureConfigBtn = QPushButton('setVideoCaptureConfig')
+        setVideoCaptureConfigBtn.setMinimumHeight(dpiSize(ButtonHeight))
+        setVideoCaptureConfigBtn.clicked.connect(self.onClickSetVideoCaptureConfigBtn)
+        hLayout.addWidget(setVideoCaptureConfigBtn)
         setVideoEncoderConfigBtn = QPushButton('setVideoEncoderConfig')
         setVideoEncoderConfigBtn.setMinimumHeight(dpiSize(ButtonHeight))
         setVideoEncoderConfigBtn.clicked.connect(self.onClickSetVideoEncoderConfigBtn)
@@ -652,6 +679,7 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         if self.configJson['appNameIndex'] >= 0 and self.configJson['appNameIndex'] < len(self.configJson['appNameList']):
             self.appNameCombox.setCurrentIndex(self.configJson['appNameIndex'])
         self.localViewEdit.setText(f'0x{int(self.videoLabels[0].winId()):X}')
+        self.onComboxResolutionSelectionChanged()
 
     def onClickRunScenerioButton(self) -> None:
         scenerioInfo = self.configJson["scenerios"][self.scenerioCombox.currentIndex()]
@@ -670,6 +698,7 @@ class MainWindow(QMainWindow, astask.AsyncTask):
                 sdk.log.error(f'{funcText}\n{ex}')
                 exceptInfo = traceback.format_exc()
                 sdk.log.error(exceptInfo)
+                self.codeDlg.outputEdit.appendPlainText(f'\nexec(...): {ex}\n{exceptInfo}\n')
                 break
             if not self.continueRunScenerio:
                 break
@@ -888,16 +917,35 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         if self.rtcVideo:
             self.rtcVideo.stopAudioCapture()
 
+    def onComboxResolutionSelectionChanged(self) -> None:
+        curText = self.resolutionCombox.currentText()
+        size, fps = curText.split()
+        width, height = size.split('*')
+        fps = fps[:-3]
+        self.widthEdit.setText(width)
+        self.heightEdit.setText(height)
+        self.fpsEdit.setText(fps)
+
+    def onClickSetVideoCaptureConfigBtn(self) -> None:
+        if not self.rtcVideo:
+            return
+        videoCaptureConfig = sdk.VideoCaptureConfig()
+        videoCaptureConfig.capturePreference = sdk.CapturePreference(self.capturePreferenceCombox.currentIndex())
+        videoCaptureConfig.width = int(self.widthEdit.text())
+        videoCaptureConfig.height = int(self.heightEdit.text())
+        videoCaptureConfig.frameRate = int(self.fpsEdit.text())
+        self.rtcVideo.setVideoCaptureConfig(videoCaptureConfig)
+
     def onClickSetVideoEncoderConfigBtn(self) -> None:
         if not self.rtcVideo:
             return
-        solution = sdk.VideoSolution()
-        solution.width = int(self.widthEdit.text())
-        solution.height = int(self.heightEdit.text())
-        solution.fps = int(self.fpsEdit.text())
-        solution.max_send_kbps = int(self.bitrateEdit.text())
-        solution.encode_preference = sdk.VideoEncodePreference.Framerate
-        self.rtcVideo.setVideoEncoderConfig(index=sdk.StreamIndex.Main, solutions=[solution])
+        videoEncoderConfig = sdk.VideoEncoderConfig()
+        videoEncoderConfig.width = int(self.widthEdit.text())
+        videoEncoderConfig.height = int(self.heightEdit.text())
+        videoEncoderConfig.frameRate = int(self.fpsEdit.text())
+        videoEncoderConfig.maxBitrate = int(self.bitrateEdit.text())
+        videoEncoderConfig.encoderPreference = sdk.VideoEncodePreference.Framerate
+        self.rtcVideo.setVideoEncoderConfig(videoEncoderConfig)
 
     def onClickSetLocalVideoCanvasBtn(self) -> None:
         if not self.rtcVideo:
@@ -907,7 +955,7 @@ class MainWindow(QMainWindow, astask.AsyncTask):
             viewHandle = int(viewText, base=16)
         else:
             viewHandle = int(viewText, base=10)
-        videoCanvas = sdk.VideoCanvas(view=viewHandle, render_mode=sdk.RenderMode.Hidden, background_color=0x000000)
+        videoCanvas = sdk.VideoCanvas(view=viewHandle, render_mode=sdk.RenderMode.Fit, background_color=0x000000)
         self.rtcVideo.setLocalVideoCanvas(index=sdk.StreamIndex.Main, canvas=videoCanvas)
 
     def onClickVDMBtn(self) -> None:
@@ -1006,7 +1054,7 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         self.RTCVideoEventHandler = {
             #'onError': self.onError,
             #'onWarning': self.onWarning,
-
+            'onConnectionStateChanged': self.onConnectionStateChanged,
         }
 
         self.RTCRoomEventHandler = {
@@ -1017,8 +1065,11 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         }
 
     #RTCVideo Event Handler
+    def onConnectionStateChanged(self, event_time: int, event_name: str, event_json: str, event: dict) -> None:
+        pass
 
     #RTCRoom Event Handler
+
     def onRoomStateChanged(self, event_time: int, event_name: str, event_json: str, event: dict) -> None:
         state = event['state']
         if state != 0:
@@ -1046,7 +1097,7 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         self.viewUsingIndex.add(freeViewIndex)
         self.uid2ViewIndex[userId] = freeViewIndex
         remoteStreamKey = sdk.RemoteStreamKey(room_id=self.roomId, user_id=userId, stream_index=sdk.StreamIndex.Main)
-        videoCanvas = sdk.VideoCanvas(view=freeView, render_mode=sdk.RenderMode.Hidden, background_color=0x000000)
+        videoCanvas = sdk.VideoCanvas(view=freeView, render_mode=sdk.RenderMode.Fit, background_color=0x000000)
         self.rtcVideo.setRemoteStreamVideoCanvas(stream_key=remoteStreamKey, canvas=videoCanvas)
 
     def onUserLeave(self, event_time: int, event_name: str, event_json: str, event: dict) -> None:
@@ -1054,7 +1105,7 @@ class MainWindow(QMainWindow, astask.AsyncTask):
             return
         userId = event['user_id']
         remoteStreamKey = sdk.RemoteStreamKey(room_id=self.roomId, user_id=userId, stream_index=sdk.StreamIndex.Main)
-        videoCanvas = sdk.VideoCanvas(view=0, render_mode=sdk.RenderMode.Hidden, background_color=0x000000)
+        videoCanvas = sdk.VideoCanvas(view=0, render_mode=sdk.RenderMode.Fit, background_color=0x000000)
         self.rtcVideo.setRemoteStreamVideoCanvas(stream_key=remoteStreamKey, canvas=videoCanvas)
         if userId in self.uid2ViewIndex:
             viewIndex = self.uid2ViewIndex.pop(userId)
@@ -1065,7 +1116,6 @@ class MainWindow(QMainWindow, astask.AsyncTask):
 
     def testFunc(self) -> None:
         pass
-
 
 #def IsUserAnAdmin() -> bool:
     #return bool(ctypes.windll.shell32.IsUserAnAdmin())
