@@ -99,7 +99,7 @@ def main(isCameraCapture: bool = True):
         videoSolu.height = 1080
         videoSolu.fps = 15
         videoSolu.max_send_kbps = 2000
-        rtcVideo.setVideoEncoderConfig(sdk.StreamIndex.Screen, [videoSolu])
+        rtcVideo.setVideoEncoderConfigSolutions(sdk.StreamIndex.Screen, [videoSolu])
         sourceList = rtcVideo.getScreenCaptureSourceList()
         for sourceInfo in sourceList:
             sdk.log.info(f'{sourceInfo.pid}, {sourceInfo.application}, {sourceInfo.source_name}')
@@ -107,7 +107,7 @@ def main(isCameraCapture: bool = True):
             sourceInfo = sourceList[0]
             captureParams = sdk.ScreenCaptureParameters()
             #captureParams.region_rect = sdk.Rectangle(x=0, y=0, width=1920, height=1080)
-            rtcVideo.startScreenVideoCapture(source_info=sourceInfo, capture_params=captureParams)
+            rtcVideo.setVideoEncoderConfigSolutions(source_info=sourceInfo, capture_params=captureParams)
     rtcRoom = rtcVideo.createRTCRoom(room_id=RoomId)
     roomEventHandler = RTCRoomEventHandler()
     rtcRoom.setRTCRoomEventHandler(roomEventHandler)
@@ -125,7 +125,14 @@ def main(isCameraCapture: bool = True):
         rtcRoom.publishStream(sdk.MediaStreamType.Both)
     else:
         rtcRoom.publishScreen(sdk.MediaStreamType.Both)
+
+    #crash begins
     input('----\npaused\n----')
+    rtcVideo.dll.byte_deleteRTCVideoEventHandler(rtcVideo.pIRTCVideoEventHandler)
+    rtcVideo.pIRTCVideoEventHandler = 0
+    rtcVideo.IRTCVideoEventHandler = 0
+    #crash ends    input('----\npaused\n----')
+
     rtcRoom.leaveRoom()
     time.sleep(0.5)
     rtcVideo.stopAudioCapture()

@@ -372,6 +372,7 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         self.maximizedVideoLabelIndex = -1
         self.menuShowOnVideoLableIndex = -1
         self.mousePressOnVideoLabelIndex = -1
+        self.remoteViewStartIndex = 1
         self.createUI()
         self.initUI()
         self.selectSdkDlg = SelectSdkDlg(self, selectCallback=self.onSelectSdkCallback)
@@ -835,7 +836,7 @@ class MainWindow(QMainWindow, astask.AsyncTask):
 
     def getFreeView(self) -> Tuple[int, int]:
         freeView, freeViewIndex = 0, -1
-        for i in range(1, self.viewCount):
+        for i in range(self.remoteViewStartIndex, self.viewCount):
             if i not in self.viewUsingIndex:
                 freeView, freeViewIndex = int(self.videoLabels[i].winId()), i
                 break
@@ -1061,7 +1062,10 @@ class MainWindow(QMainWindow, astask.AsyncTask):
             'onRoomStateChanged': self.onRoomStateChanged,
             'onUserJoined': self.onUserJoined,
             'onUserLeave': self.onUserLeave,
-
+            'onUserPublishStream': self.onUserPublishStream,
+            'onUserUnpublishStream': self.onUserUnpublishStream,
+            'onUserPublishScreen': self.onUserPublishScreen,
+            'onUserUnpublishScreen': self.onUserUnpublishScreen,
         }
 
     #RTCVideo Event Handler
@@ -1081,10 +1085,29 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         if not self.rtcVideo:
             return
         userId = event['user_info']['uid']
+
+    def onUserLeave(self, event_time: int, event_name: str, event_json: str, event: dict) -> None:
+        if not self.rtcVideo:
+            return
+        userId = event['user_id']
+        if userId in self.uid2ViewIndex:
+            for streamIndex, viewIndex in self.uid2ViewIndex[userId].items():
+                if viewIndex in self.viewUsingIndex:
+                    self.videoLabels[viewIndex].setText('Remote')
+                    self.viewUsingIndex.remove(viewIndex)
+                    self.resetViewsBackground([viewIndex])
+            self.uid2ViewIndex.pop(userId)
+
+    def onUserPublishStream(self, event_time: int, event_name: str, event_json: str, event: dict) -> None:
+        if not self.rtcVideo:
+            return
+        if not (event['type'] & sdk.MediaStreamType.Video):
+            return
+        userId = event['user_id']
         if not self.checkAutoSetRemoteStreamVideoCanvas.isChecked():
             sdk.log.warn(f'user_id {userId} joined, but do not setRemoteStreamVideoCanvas for he/she, AutoSetRemoteStreamVideoCanvas is not checked')
             return
-        for i in range(1, self.viewCount):
+        for i in range(self.remoteViewStartIndex, self.viewCount):
             if i not in self.viewUsingIndex:
                 break
         else:
@@ -1093,29 +1116,79 @@ class MainWindow(QMainWindow, astask.AsyncTask):
                 self.layoutCombox.setCurrentIndex(index)
                 # self.onComboxLayoutSelectionChanged(index)
         freeView, freeViewIndex = self.getFreeView()
-        self.videoLabels[freeViewIndex].setText(f'Remote user_id {userId}')
+        self.videoLabels[freeViewIndex].setText(f'Remote user_id {userId} Camera')
         self.viewUsingIndex.add(freeViewIndex)
-        self.uid2ViewIndex[userId] = freeViewIndex
+        if userId in self.uid2ViewIndex:
+            self.uid2ViewIndex[userId][sdk.StreamIndex.Main] = freeViewIndex
+        else:
+            self.uid2ViewIndex[userId] = {sdk.StreamIndex.Main: freeViewIndex}
         remoteStreamKey = sdk.RemoteStreamKey(room_id=self.roomId, user_id=userId, stream_index=sdk.StreamIndex.Main)
         videoCanvas = sdk.VideoCanvas(view=freeView, render_mode=sdk.RenderMode.Fit, background_color=0x000000)
         self.rtcVideo.setRemoteStreamVideoCanvas(stream_key=remoteStreamKey, canvas=videoCanvas)
 
-    def onUserLeave(self, event_time: int, event_name: str, event_json: str, event: dict) -> None:
+    def onUserUnpublishStream(self, event_time: int, event_name: str, event_json: str, event: dict) -> None:
         if not self.rtcVideo:
             return
+        if event['type'] & sdk.MediaStreamType.Video:
+            userId = event['user_id']
+            remoteStreamKey = sdk.RemoteStreamKey(room_id=self.roomId, user_id=userId, stream_index=sdk.StreamIndex.Main)
+            videoCanvas = sdk.VideoCanvas(view=0, render_mode=sdk.RenderMode.Fit, background_color=0x000000)
+            self.rtcVideo.setRemoteStreamVideoCanvas(stream_key=remoteStreamKey, canvas=videoCanvas)
+            if userId in self.uid2ViewIndex:
+                if sdk.StreamIndex.Main in self.uid2ViewIndex[userId]:
+                    viewIndex = self.uid2ViewIndex[userId].pop(sdk.StreamIndex.Main)
+                    if viewIndex in self.viewUsingIndex:
+                        self.videoLabels[viewIndex].setText('Remote')
+                        self.viewUsingIndex.remove(viewIndex)
+                        self.resetViewsBackground([viewIndex])
+
+    def onUserPublishScreen(self, event_time: int, event_name: str, event_json: str, event: dict) -> None:
+        if not self.rtcVideo:
+            return
+        if not (event['type'] & sdk.MediaStreamType.Video):
+            return
         userId = event['user_id']
-        remoteStreamKey = sdk.RemoteStreamKey(room_id=self.roomId, user_id=userId, stream_index=sdk.StreamIndex.Main)
-        videoCanvas = sdk.VideoCanvas(view=0, render_mode=sdk.RenderMode.Fit, background_color=0x000000)
-        self.rtcVideo.setRemoteStreamVideoCanvas(stream_key=remoteStreamKey, canvas=videoCanvas)
+        if not self.checkAutoSetRemoteStreamVideoCanvas.isChecked():
+            sdk.log.warn(f'user_id {userId} joined, but do not setRemoteStreamVideoCanvas for he/she, AutoSetRemoteStreamVideoCanvas is not checked')
+            return
+        for i in range(self.remoteViewStartIndex, self.viewCount):
+            if i not in self.viewUsingIndex:
+                break
+        else:
+            index = self.layoutCombox.currentIndex() + 1
+            if index < self.layoutCombox.count():
+                self.layoutCombox.setCurrentIndex(index)
+                # self.onComboxLayoutSelectionChanged(index)
+        freeView, freeViewIndex = self.getFreeView()
+        self.videoLabels[freeViewIndex].setText(f'Remote user_id {userId} Screen')
+        self.viewUsingIndex.add(freeViewIndex)
         if userId in self.uid2ViewIndex:
-            viewIndex = self.uid2ViewIndex.pop(userId)
-            if viewIndex in self.viewUsingIndex:
-                self.videoLabels[viewIndex].setText('Remote')
-                self.viewUsingIndex.remove(viewIndex)
-                self.resetViewsBackground([viewIndex])
+            self.uid2ViewIndex[userId][sdk.StreamIndex.Screen] = freeViewIndex
+        else:
+            self.uid2ViewIndex[userId] = {sdk.StreamIndex.Screen: freeViewIndex}
+        remoteStreamKey = sdk.RemoteStreamKey(room_id=self.roomId, user_id=userId, stream_index=sdk.StreamIndex.Screen)
+        videoCanvas = sdk.VideoCanvas(view=freeView, render_mode=sdk.RenderMode.Fit, background_color=0x000000)
+        self.rtcVideo.setRemoteStreamVideoCanvas(stream_key=remoteStreamKey, canvas=videoCanvas)
+
+    def onUserUnpublishScreen(self, event_time: int, event_name: str, event_json: str, event: dict) -> None:
+        if not self.rtcVideo:
+            return
+        if event['type'] & sdk.MediaStreamType.Video:
+            userId = event['user_id']
+            remoteStreamKey = sdk.RemoteStreamKey(room_id=self.roomId, user_id=userId, stream_index=sdk.StreamIndex.Screen)
+            videoCanvas = sdk.VideoCanvas(view=0, render_mode=sdk.RenderMode.Fit, background_color=0x000000)
+            self.rtcVideo.setRemoteStreamVideoCanvas(stream_key=remoteStreamKey, canvas=videoCanvas)
+            if userId in self.uid2ViewIndex:
+                if sdk.StreamIndex.Screen in self.uid2ViewIndex[userId]:
+                    viewIndex = self.uid2ViewIndex[userId].pop(sdk.StreamIndex.Screen)
+                    if viewIndex in self.viewUsingIndex:
+                        self.videoLabels[viewIndex].setText('Remote')
+                        self.viewUsingIndex.remove(viewIndex)
+                        self.resetViewsBackground([viewIndex])
 
     def testFunc(self) -> None:
         pass
+
 
 #def IsUserAnAdmin() -> bool:
     #return bool(ctypes.windll.shell32.IsUserAnAdmin())
@@ -1124,6 +1197,7 @@ class MainWindow(QMainWindow, astask.AsyncTask):
 #def RunScriptAsAdmin(argv: List[str], workingDirectory: str = None, showFlag: int = 1) -> bool:
     #args = ' '.join('"{}"'.format(arg) for arg in argv)
     #return ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.executable, args, workingDirectory, showFlag) > 32
+
 
 def _adjustPos(win: MainWindow):
     if sys.platform == 'win32':

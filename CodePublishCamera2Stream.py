@@ -1,3 +1,4 @@
+#下面所有代码在MainWindow中的上下文执行
 def publishCameraStreamTest(self, cameraIndex: int):
     if self.rtcVideo is None:
         appInfo = self.configJson['appNameList'][self.configJson['appNameIndex']]
@@ -111,33 +112,50 @@ def publishCameraStreamTest(self, cameraIndex: int):
     self.rtcRoom.joinRoom(token, user_info=userInfo, room_config=roomConfig)
 
 
-def myOnConnectionStateChanged(self, event_time: int, event_name: str, event_json: str, event: dict) -> None:
-    #Demo内部一般有回调处理了，先调用内部的
-    self.onConnectionStateChanged(event_time, event_name, event_json, event)
+#给MainWindow动态添加方法
+MainWindow.publishCameraStreamTest = publishCameraStreamTest
 
+
+def onConnectionStateChanged(self, event_time: int, event_name: str, event_json: str, event: dict) -> None:
     #自定义回调处理，打开log文件查看dict对象内容
     if event['state'] == sdk.ConnectionState.Connected:
         self.connected = True
 
-def myOnRoomStateChanged(self, event_time: int, event_name: str, event_json: str, event: dict) -> None:
-    #Demo内部一般有回调处理了，先调用内部的
-    self.onRoomStateChanged(event_time, event_name, event_json, event)
 
+MainWindow.onConnectionStateChanged = onConnectionStateChanged
+
+
+def onRoomStateChanged(self, event_time: int, event_name: str, event_json: str, event: dict) -> None:
     #自定义回调处理，打开log文件查看dict对象内容
     if event['state'] != 0:
         print('wrong')
 
-MainWindow.publishCameraStreamTest = publishCameraStreamTest
-MainWindow.myOnConnectionStateChanged = myOnConnectionStateChanged
-#所有回调都已转到UI线程处理
-#self.RTCVideoEventHandler['onConnectionStateChanged'] = self.onConnectionStateChanged   #Demo内部已有的默认回调处理
-self.RTCVideoEventHandler['onConnectionStateChanged'] = self.myOnConnectionStateChanged
 
-MainWindow.myOnRoomStateChanged = myOnRoomStateChanged
-#self.RTCRoomEventHandler['onRoomStateChanged'] = self.onRoomStateChanged   #Demo内部已有的默认回调处理
-self.RTCRoomEventHandler['onRoomStateChanged'] = self.myOnRoomStateChanged
+MainWindow.onRoomStateChanged = onRoomStateChanged
 
+#绑定回调，回调发生时会自动调用新添加的方法，所有回调都已转到UI线程处理
+self.RTCVideoEventHandler['onConnectionStateChanged'] = self.onConnectionStateChanged
+self.RTCRoomEventHandler['onRoomStateChanged'] = self.onRoomStateChanged
+'''
+下面几个回调Demo内部已经有内置的处理
+onUserJoined
+onUserLeave
+onUserPublishStream
+onUserUnpublishStream
+onUserPublishScreen
+onUserUnpublishScreen
+如果要增加自定义处理，可以这样使用
+def onUserJoinedExtra(self, event_time: int, event_name: str, event_json: str, event: dict) -> None:
+    self.onUserJoined(event_time, event_name, event_json, event)
+    #write your extra code
+    
+MainWindow.onUserJoinedExtra = onUserJoinedExtra
+self.RTCRoomEventHandler['onUserJoined'] = self.onUserJoinedExtra
+'''
+
+#执行测试代码
 self.connected = False
 self.publishCameraStreamTest(cameraIndex=1)
 
-#最后请手动点击destroyRTCVideo按钮销毁对象
+#最后请手动点击destroyRTCVideo按钮销毁对象或者延迟调用self.onClickDestroyRtcVideoBtn
+#self.delayCall(timeMs=10000, func=self.onClickDestroyRtcVideoBtn)

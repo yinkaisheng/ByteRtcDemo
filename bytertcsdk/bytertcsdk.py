@@ -163,11 +163,13 @@ def chooseSdkBinDir(sdkBinDir: str):
     print(f'SdkBinDir={SdkBinDir}, SdkVersion={SdkVersion}, SdkBinDirFull={SdkBinDirFull}')
 
 
+@ APITime
 def getVersion() -> str:
     version = _DllClient.instance().dll.byte_getSDKVersion()
     return version.decode()
 
 
+@ APITime
 def getErrorDescription(error: int) -> str:
     errorDesc = _DllClient.instance().dll.byte_getErrorDescription(error)
     return errorDesc.decode()

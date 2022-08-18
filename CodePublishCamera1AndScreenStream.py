@@ -1,5 +1,5 @@
 #下面所有代码在MainWindow中的上下文执行
-def publishCameraStreamTest(self, cameraIndex: int):
+def publishCameraAndScreenStreamTest(self, cameraIndex: int):
     if self.rtcVideo is None:
         appInfo = self.configJson['appNameList'][self.configJson['appNameIndex']]
         appId = appInfo['appId']    #使用配置文件ByteRtcDemo.config里的AppId
@@ -7,6 +7,8 @@ def publishCameraStreamTest(self, cameraIndex: int):
         jsonParams = '{"key": "value"}'
         self.rtcVideo = sdk.RTCVideo(app_id=appId, event_handler=self, parameters=jsonParams)
     self.setWindowTitle(f'{DemoTitle}, sdk: {sdk.getVersion()}, APILog: bytesdklog/{sdk.APILogPath}')
+
+    self.remoteViewStartIndex = 2
 
     self.rtcVideo.startAudioCapture()
 
@@ -62,6 +64,32 @@ def publishCameraStreamTest(self, cameraIndex: int):
 
     self.rtcVideo.startVideoCapture()
 
+    viewHandle = int(self.videoLabels[1].winId())
+    #renderMode = sdk.RenderMode.Hidden  #1
+    renderMode = sdk.RenderMode.Fit     #2
+    #renderMode = sdk.RenderMode.Fill    #3
+    videoCanvas = sdk.VideoCanvas(view=viewHandle, render_mode=renderMode, background_color=0x000000)
+    #index = sdk.StreamIndex.Main    #0
+    index = sdk.StreamIndex.Screen #1
+    self.rtcVideo.setLocalVideoCanvas(index, videoCanvas)
+
+    sourceList = self.rtcVideo.getScreenCaptureSourceList()
+    if sourceList:
+        captureParam = sdk.ScreenCaptureParameters()
+        captureParam.capture_mouse_cursor = True
+        #captureParam.capture_mouse_cursor = False
+        captureParam.content_hint = sdk.ContentHint.Details #0
+        #captureParam.content_hint = sdk.ContentHint.Motion  #1
+        captureParam.filter_config = sdk.ScreenFilterConfig()
+        captureParam.filter_config.excluded_window_list = []    #[0x13143, 0x31434]
+        captureParam.highlight_config = sdk.HighlightConfig()
+        captureParam.highlight_config.border_color = 0xFF29CCA3
+        captureParam.highlight_config.enable_highlight = True
+        #captureParam.highlight_config.enable_highlight = False
+        captureParam.highlight_config.border_width = 4
+        captureParam.region_rect = sdk.Rectangle(x=0, y=0, width=1920, height=1080)
+        self.rtcVideo.startScreenVideoCapture(sourceList[0], captureParam)
+
     if self.rtcRoom is None:
         self.roomId = self.roomIdEdit.text().strip()
         #self.roomId = "TheRoomId"
@@ -110,10 +138,11 @@ def publishCameraStreamTest(self, cameraIndex: int):
             break
         time.sleep(0.05)
     self.rtcRoom.joinRoom(token, user_info=userInfo, room_config=roomConfig)
+    self.rtcRoom.publishScreen(sdk.MediaStreamType.Video)
 
 
 #给MainWindow动态添加方法
-MainWindow.publishCameraStreamTest = publishCameraStreamTest
+MainWindow.publishCameraAndScreenStreamTest = publishCameraAndScreenStreamTest
 
 
 def onConnectionStateChanged(self, event_time: int, event_name: str, event_json: str, event: dict) -> None:
@@ -155,7 +184,7 @@ self.RTCRoomEventHandler['onUserJoined'] = self.onUserJoinedExtra
 
 #执行测试代码
 self.connected = False
-self.publishCameraStreamTest(cameraIndex=0)
+self.publishCameraAndScreenStreamTest(cameraIndex=0)
 
 #最后请手动点击destroyRTCVideo按钮销毁对象或者延迟调用self.onClickDestroyRtcVideoBtn
 #self.delayCall(timeMs=10000, func=self.onClickDestroyRtcVideoBtn)
