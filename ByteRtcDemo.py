@@ -1,5 +1,5 @@
 #!python3
-#-*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 #author: yinkaisheng@foxmail.com
 from __future__ import annotations
 import os
@@ -19,7 +19,7 @@ from typing import Any, Callable, Dict, List, Tuple
 from PyQt5.QtCore import QObject, QThread, QTimer, Qt, pyqtSignal
 from PyQt5.QtGui import QCloseEvent, QColor, QContextMenuEvent, QCursor, QFont, QIcon, QIntValidator, QKeyEvent, QMouseEvent, QPainter, QPixmap, QTextCursor, QTextOption
 from PyQt5.QtWidgets import QAction, QApplication, QDesktopWidget, QDialog, QInputDialog, QMainWindow, QMenu, QMessageBox, QWidget, qApp
-from PyQt5.QtWidgets import QCheckBox, QComboBox, QLabel, QLineEdit, QListView, QPushButton, QRadioButton, QSlider, QPlainTextEdit, QTextEdit, QToolTip
+from PyQt5.QtWidgets import QCheckBox, QComboBox, QLabel, QLineEdit, QListView, QPushButton, QRadioButton, QSlider, QPlainTextEdit, QTextEdit, QToolTip, QTreeView
 from PyQt5.QtWidgets import QGridLayout, QHBoxLayout, QLayout, QSplitter, QVBoxLayout
 from QCodeEditor import QCodeEditor
 import pyqt5AsyncTask as astask
@@ -58,7 +58,7 @@ class SelectSdkDlg(QDialog):
         isX64 = sys.maxsize > 0xFFFFFFFF
         bit = 2 if isX64 else 1
         self.setWindowTitle(f'Select SDK Version')
-        #self.setAttribute(Qt.WA_DeleteOnClose)
+        # self.setAttribute(Qt.WA_DeleteOnClose)
         self.resize(dpiSize(300), dpiSize(200))
         self.selectCallback = selectCallback
 
@@ -98,7 +98,7 @@ class SelectSdkDlg(QDialog):
         sdkBinPath = os.path.join(sdk.SdkBinDirFull, sdk.SdkDllName)
         if not os.path.exists(sdkBinPath):
             print(f'---- {sdkBinPath} does not exist')
-            #load dll in develop code path
+            # load dll in develop code path
             binDirs = util.getFileText(os.path.join(sdk.ExeDir, sdk.ExeNameNoExt + '.dllpath')).splitlines()
             for binDir in binDirs:
                 binPath = os.path.join(binDir, sdk.SdkDllName)
@@ -121,7 +121,7 @@ class SelectSdkDlg(QDialog):
 class TipDlg(QDialog):
     def __init__(self, parent: QObject = None, tipTime=6):
         super(TipDlg, self).__init__(parent)
-        self.setWindowFlags(Qt.Tool | Qt.FramelessWindowHint)  #Qt.Tool makes no display on taskbar
+        self.setWindowFlags(Qt.Tool | Qt.FramelessWindowHint)  # Qt.Tool makes no display on taskbar
         self.resize(dpiSize(200), dpiSize(100))
         self.setMaximumWidth(dpiSize(1280))
         self.gridLayout = QGridLayout()
@@ -155,7 +155,7 @@ class TipDlg(QDialog):
                 self.tipLabel.resize(dpiSize(200), dpiSize(100))
             self.tipLabel.setText(msg)
         self.show()
-        #need raise_ and activateWindow if dialog is already shown, otherwise codeDlg won't active
+        # need raise_ and activateWindow if dialog is already shown, otherwise codeDlg won't active
         self.raise_()
         self.activateWindow()
 
@@ -169,7 +169,7 @@ class CodeDlg(QDialog):
         self.threadId = threading.currentThread().ident
         self.setWindowFlags(Qt.Dialog | Qt.WindowMaximizeButtonHint | Qt.WindowCloseButtonHint)
         self.setWindowTitle(f"Python {sys.version.split()[0]} Code Executor ")
-        #self.setAttribute(Qt.WA_DeleteOnClose)
+        # self.setAttribute(Qt.WA_DeleteOnClose)
         self.resize(dpiSize(1200), dpiSize(600))
         vLayout = QVBoxLayout()
         self.setLayout(vLayout)
@@ -232,7 +232,7 @@ class CodeDlg(QDialog):
         vLayout.addWidget(self.qsplitter)
         self.codeEdit = QCodeEditor()
         self.codeEdit.setStyleSheet('QPlainTextEdit{font-size:%dpx;font-family:Consolas;background-color:rgb(204,232,207);}' % dpiSize(16))
-        #self.codeEdit.setPlainText(codeText)
+        # self.codeEdit.setPlainText(codeText)
         self.qsplitter.addWidget(self.codeEdit)
         self.outputEdit = QPlainTextEdit()
         self.outputEdit.setStyleSheet('QPlainTextEdit{font-size:%dpx;font-family:Consolas;background-color:rgb(204,232,207);}' % dpiSize(14))
@@ -282,7 +282,7 @@ class CodeDlg(QDialog):
             if button.text() == 'e&val':
                 ret = self.mainWindow.evalCode(text)
                 sdk.log.info(f'eval(...) = {ret}\n')
-            else:  #exec
+            else:  # exec
                 self.mainWindow.execCode(text)
                 sdk.log.info(f'exec(...) done\n')
         except Exception as ex:
@@ -379,11 +379,11 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         self.tipDlg = TipDlg(None)
         self.codeDlg = CodeDlg(self)
         self.selectSdkDlg.exec()
-        #after exec, console window is active, set MainWindow active in timer
+        # after exec, console window is active, set MainWindow active in timer
         if sys.stdout:
             self.delayCall(timeMs=100, func=self.activateWindow)
 
-        self.rtcVideo = None  #sdk.RTCVideo(app_id='', event_handler=None, parameters='')
+        self.rtcVideo = None  # sdk.RTCVideo(app_id='', event_handler=None, parameters='')
         self.rtcRoom = None
         self.roomId = ''
         self.RTCVideoEventSignal.connect(self.onRTCVideoEvent)
@@ -401,7 +401,7 @@ class MainWindow(QMainWindow, astask.AsyncTask):
     def createUI(self) -> None:
         self.setWindowTitle(DemoTitle)
         self.setWindowIcon(QIcon(IcoPath))
-        self.resize(dpiSize(1280), dpiSize(600))
+        self.resize(dpiSize(1280), dpiSize(800))
         self.intValidator = QIntValidator()
 
         mainWg = QWidget()
@@ -416,8 +416,8 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         leftWg.setLayout(vLayout)
         self.mainLayout.addWidget(leftWg)
 
-        #--------
-        #left panel
+        # --------
+        # left panel
 
         hLayout = QHBoxLayout()
         vLayout.addLayout(hLayout)
@@ -438,7 +438,7 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         hLayout.addWidget(runScenerioButton)
         hLayout.addStretch(1)
 
-        #----
+        # ----
         hLayout = QHBoxLayout()
         vLayout.addLayout(hLayout)
 
@@ -451,10 +451,10 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         self.appNameCombox.setView(QListView())
         self.appNameCombox.setEditable(True)
         self.appNameCombox.currentIndexChanged.connect(self.onComboxAppNameSelectionChanged)
-        hLayout.addWidget(self.appNameCombox)  #, stretch=1
+        hLayout.addWidget(self.appNameCombox)  # , stretch=1
         hLayout.addStretch(1)
 
-        #----
+        # ----
         hLayout = QHBoxLayout()
         vLayout.addLayout(hLayout)
         roomIdLabel = QLabel('RoomId:')
@@ -470,17 +470,17 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         self.userIdEdit.setMinimumHeight(dpiSize(EditHeight))
         hLayout.addWidget(self.userIdEdit)
 
-        #----
+        # ----
         hLayout = QHBoxLayout()
         vLayout.addLayout(hLayout)
         tokenLabel = QLabel('Token:')
         hLayout.addWidget(tokenLabel)
         self.tokenEdit = QLineEdit()
-        #self.tokenEdit.setMaximumWidth(dpiSize(100))
+        # self.tokenEdit.setMaximumWidth(dpiSize(100))
         self.tokenEdit.setMinimumHeight(dpiSize(EditHeight))
         hLayout.addWidget(self.tokenEdit)
 
-        #----
+        # ----
         hLayout = QHBoxLayout()
         vLayout.addLayout(hLayout)
         createRtcVideoBtn = QPushButton('createRTCVideo')
@@ -492,7 +492,7 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         destroyRtcVideoBtn.clicked.connect(self.onClickDestroyRtcVideoBtn)
         hLayout.addWidget(destroyRtcVideoBtn)
 
-        #----
+        # ----
         hLayout = QHBoxLayout()
         vLayout.addLayout(hLayout)
         startAudioCaptureBtn = QPushButton('startAudioCapture')
@@ -504,7 +504,7 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         stopAudioCaptureBtn.clicked.connect(self.onClickStopAudioCaptureBtn)
         hLayout.addWidget(stopAudioCaptureBtn)
 
-        #----
+        # ----
         hLayout = QHBoxLayout()
         vLayout.addLayout(hLayout)
         self.resolutionCombox = QComboBox()
@@ -527,7 +527,7 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         hLayout.addWidget(self.capturePreferenceCombox)
         hLayout.addStretch(1)
 
-        #----
+        # ----
         hLayout = QHBoxLayout()
         vLayout.addLayout(hLayout)
         widthLabel = QLabel('Width:')
@@ -561,7 +561,7 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         hLayout.addWidget(self.bitrateEdit)
         hLayout.addStretch(1)
 
-        #----
+        # ----
         hLayout = QHBoxLayout()
         vLayout.addLayout(hLayout)
         setVideoCaptureConfigBtn = QPushButton('setVideoCaptureConfig')
@@ -573,7 +573,7 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         setVideoEncoderConfigBtn.clicked.connect(self.onClickSetVideoEncoderConfigBtn)
         hLayout.addWidget(setVideoEncoderConfigBtn)
 
-        #----
+        # ----
         hLayout = QHBoxLayout()
         vLayout.addLayout(hLayout)
         setLocalVideoCanvasBtn = QPushButton('setLocalVideoCanvas')
@@ -592,7 +592,7 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         vdmBtn.setToolTip('VideoDeviceManager')
         hLayout.addWidget(vdmBtn)
 
-        #----
+        # ----
         hLayout = QHBoxLayout()
         vLayout.addLayout(hLayout)
         startVideoCaptureBtn = QPushButton('startVideoCapture')
@@ -604,7 +604,7 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         stopVideoCaptureBtn.clicked.connect(self.onClickStopVideoCaptureBtn)
         hLayout.addWidget(stopVideoCaptureBtn)
 
-        #----
+        # ----
         hLayout = QHBoxLayout()
         vLayout.addLayout(hLayout)
         createRTCRoomBtn = QPushButton('createRTCRoom')
@@ -616,7 +616,7 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         joinRoomBtn.clicked.connect(self.onClickJoinRoomBtn)
         hLayout.addWidget(joinRoomBtn)
 
-        #----
+        # ----
         hLayout = QHBoxLayout()
         vLayout.addLayout(hLayout)
         leaveRoomBtn = QPushButton('leaveRoom')
@@ -628,11 +628,11 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         destroyRoomBtn.clicked.connect(self.onClickDestroyRoomBtn)
         hLayout.addWidget(destroyRoomBtn)
 
-        #----
+        # ----
         vLayout.addStretch(1)
 
-        #--------
-        #right layout
+        # --------
+        # right layout
         vLayout = QVBoxLayout()
         self.mainLayout.addLayout(vLayout, stretch=1)
 
@@ -674,6 +674,13 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         self.copyViewHandleAction = QAction('Copy View Handle', self)
         self.copyViewHandleAction.triggered.connect(self.onActionCopyViewHandle)
 
+        self.eventView = QTreeView()
+        # self.proxyView.setRootIsDecorated(False)
+        # self.proxyView.setAlternatingRowColors(True)
+        # self.proxyView.setModel(self.proxyModel)
+        # self.proxyView.setSortingEnabled(True)
+        vLayout.addWidget(self.eventView)
+
     def initUI(self) -> None:
         for app in self.configJson['appNameList']:
             self.appNameCombox.addItem(app['appName'])
@@ -689,8 +696,8 @@ class MainWindow(QMainWindow, astask.AsyncTask):
     def runScenerio(self, scenerioInfo: dict) -> None:
         self.continueRunScenerio = True
         for funcText in scenerioInfo["code"]:
-            #if funcText.startswith('util'):
-                #print('debug')
+            # if funcText.startswith('util'):
+                # print('debug')
             if funcText.startswith('#'):
                 continue
             try:
@@ -730,7 +737,7 @@ class MainWindow(QMainWindow, astask.AsyncTask):
                     if row == 0:
                         if col == 0:
                             vtext = 'Local'
-                        #elif col == 1:
+                        # elif col == 1:
                             #vtext = 'Local Secondary'
                     view.setText(vtext)
                     view.winId()
@@ -745,7 +752,7 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         self.viewCount = count
 
     def onVideoLabelDoubleClick(self, event: QMouseEvent) -> None:
-        #sender = self.sender()  #is none
+        # sender = self.sender()  #is none
         pos = event.pos()
         gpos = event.globalPos()
         index = -1
@@ -778,11 +785,11 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         self.copyViewHandleAction.setText(f'Copy view handle 0x{int(self.videoLabels[index].winId()):X}')
         menu.addAction(self.copyViewHandleAction)
 
-        self.menuShowOnVideoLableIndex = index  #must before menu.exec_
+        self.menuShowOnVideoLableIndex = index  # must before menu.exec_
         menu.exec_(QCursor.pos())
 
     def onVideoLabelMousePress(self, event: QMouseEvent) -> None:
-        #sender = self.sender()  #is none
+        # sender = self.sender()  #is none
         pos = event.pos()
         gpos = event.globalPos()
         #print('onVideoLabelMousePress', pos, gpos)
@@ -819,16 +826,16 @@ class MainWindow(QMainWindow, astask.AsyncTask):
 
     def resetViewsBackground(self, index: List[int]) -> None:
         self.clearViewIndexs.extend(index)
-        #if sdk don't reset view background when video stops, repaint view
+        # if sdk don't reset view background when video stops, repaint view
         self.delayCall(timeMs=100, func=self.onRepaintViewBackground)
 
     def onRepaintViewBackground(self) -> None:
-        if 1:#self.checkAutoRepaintVideoBackground.isChecked():
+        if 1:  # self.checkAutoRepaintVideoBackground.isChecked():
             for index in self.clearViewIndexs:
                 vtext = 'Remote'
                 if index == 0:
                     vtext = 'Local'
-                #elif index == 1:
+                # elif index == 1:
                     #vtext = 'LocalSecondary'
                 self.videoLabels[index].setText(vtext)
                 self.videoLabels[index].repaint()
@@ -846,7 +853,7 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         self.tipDlg.showTip()
 
     def threadFuncDemo(self, signal: pyqtSignal, threadId: int, args: Any) -> None:
-        count = args  #type: int
+        count = args  # type: int
         for i in range(count):
             arg = time.time()
             print('thread[{}] sig {} send {} {}'.format(threadId, id(signal), i, arg))
@@ -890,7 +897,7 @@ class MainWindow(QMainWindow, astask.AsyncTask):
 
     def onClickRunCode(self) -> None:
         self.codeDlg.show()
-        #need raise_ and activateWindow if dialog is already shown, otherwise codeDlg won't active
+        # need raise_ and activateWindow if dialog is already shown, otherwise codeDlg won't active
         self.codeDlg.raise_()
         self.codeDlg.activateWindow()
 
@@ -1053,8 +1060,8 @@ class MainWindow(QMainWindow, astask.AsyncTask):
 
     def initializeEventHandlers(self) -> None:
         self.RTCVideoEventHandler = {
-            #'onError': self.onError,
-            #'onWarning': self.onWarning,
+            # 'onError': self.onError,
+            # 'onWarning': self.onWarning,
             'onConnectionStateChanged': self.onConnectionStateChanged,
         }
 
@@ -1068,11 +1075,11 @@ class MainWindow(QMainWindow, astask.AsyncTask):
             'onUserUnpublishScreen': self.onUserUnpublishScreen,
         }
 
-    #RTCVideo Event Handler
+    # RTCVideo Event Handler
     def onConnectionStateChanged(self, event_time: int, event_name: str, event_json: str, event: dict) -> None:
         pass
 
-    #RTCRoom Event Handler
+    # RTCRoom Event Handler
 
     def onRoomStateChanged(self, event_time: int, event_name: str, event_json: str, event: dict) -> None:
         state = event['state']
@@ -1190,13 +1197,13 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         pass
 
 
-#def IsUserAnAdmin() -> bool:
-    #return bool(ctypes.windll.shell32.IsUserAnAdmin())
+# def IsUserAnAdmin() -> bool:
+    # return bool(ctypes.windll.shell32.IsUserAnAdmin())
 
 
-#def RunScriptAsAdmin(argv: List[str], workingDirectory: str = None, showFlag: int = 1) -> bool:
+# def RunScriptAsAdmin(argv: List[str], workingDirectory: str = None, showFlag: int = 1) -> bool:
     #args = ' '.join('"{}"'.format(arg) for arg in argv)
-    #return ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.executable, args, workingDirectory, showFlag) > 32
+    # return ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.executable, args, workingDirectory, showFlag) > 32
 
 
 def _adjustPos(win: MainWindow):
@@ -1239,10 +1246,10 @@ if __name__ == '__main__':
         print(traceback.format_exc())
         input('\nSomething wrong. Please input Enter to exit.')
     sys.exit(0)
-    #if sys.platform == 'win32':
-        #if IsUserAnAdmin():
-            #_start()
-        #else:
+    # if sys.platform == 'win32':
+        # if IsUserAnAdmin():
+            # _start()
+        # else:
             #print('not admin, now run as admin')
-            #RunScriptAsAdmin(sys.argv)
+            # RunScriptAsAdmin(sys.argv)
 
