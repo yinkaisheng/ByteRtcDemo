@@ -16,9 +16,9 @@ import threading
 import traceback
 import subprocess
 from typing import Any, Callable, Dict, List, Tuple
-from PyQt5.QtCore import QObject, QThread, QTimer, Qt, pyqtSignal
-from PyQt5.QtGui import QCloseEvent, QColor, QContextMenuEvent, QCursor, QFont, QIcon, QIntValidator, QKeyEvent, QMouseEvent, QPainter, QPixmap, QTextCursor, QTextOption
-from PyQt5.QtWidgets import QAction, QApplication, QDesktopWidget, QDialog, QInputDialog, QMainWindow, QMenu, QMessageBox, QWidget, qApp
+from PyQt5.QtCore import QItemSelection, QModelIndex, QObject, QRect, QRegExp, QSortFilterProxyModel, QThread, QTimer, Qt, pyqtSignal
+from PyQt5.QtGui import QCloseEvent, QColor, QContextMenuEvent, QCursor, QFont, QIcon, QIntValidator, QKeyEvent, QMouseEvent, QPainter, QPixmap, QStandardItemModel, QTextCursor, QTextOption
+from PyQt5.QtWidgets import QAbstractItemView, QAction, QApplication, QDesktopWidget, QDialog, QInputDialog, QMainWindow, QMenu, QMessageBox, QWidget, qApp
 from PyQt5.QtWidgets import QCheckBox, QComboBox, QLabel, QLineEdit, QListView, QPushButton, QRadioButton, QSlider, QPlainTextEdit, QTextEdit, QToolTip, QTreeView
 from PyQt5.QtWidgets import QGridLayout, QHBoxLayout, QLayout, QSplitter, QVBoxLayout
 from QCodeEditor import QCodeEditor
@@ -355,6 +355,25 @@ class CodeDlg(QDialog):
             self.Signal.emit(output)
 
 
+ColumnEventType, ColumnEventName, ColumnEventTime, ColumnEventContent = range(4)
+
+
+class SortFilterProxyModel(QSortFilterProxyModel):
+    def filterAcceptsRow(self, sourceRow, sourceParent):
+        # Do we filter for the date column?
+        if self.filterKeyColumn() == ColumnEventType:
+            # Fetch datetime value.
+            #index = self.sourceModel().index(sourceRow, DATE, sourceParent)
+            #data = self.sourceModel().data(index)
+
+            # Return, if regExp match in displayed format.
+            #return (self.filterRegExp().indexIn(data.toString(Qt.DefaultLocaleShortDate)) >= 0)
+            return True
+
+        # Not our business.
+        return super(SortFilterProxyModel, self).filterAcceptsRow(sourceRow, sourceParent)
+
+
 class MainWindow(QMainWindow, astask.AsyncTask):
     RTCVideoEventSignal = pyqtSignal(tuple)
     RTCRoomEventSignal = pyqtSignal(tuple)
@@ -674,12 +693,84 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         self.copyViewHandleAction = QAction('Copy View Handle', self)
         self.copyViewHandleAction.triggered.connect(self.onActionCopyViewHandle)
 
+        hLayout = QHBoxLayout()
+        vLayout.addLayout(hLayout)
+
+        eventTypeLabel = QLabel('EventFilter Type:')
+        hLayout.addWidget(eventTypeLabel)
+        self.eventTypeCombox = QComboBox()
+        self.eventTypeCombox.setMinimumHeight(dpiSize(ComboxHeight))
+        self.eventTypeCombox.setStyleSheet('QAbstractItemView::item {height: %dpx;}' % dpiSize(ComboxItemHeight))
+        self.eventTypeCombox.setView(QListView())
+        self.eventTypeCombox.addItems(['All', 'RTCVideoEvent', 'RTCRoomEvent'])
+        self.eventTypeCombox.setCurrentIndex(0)
+        self.eventTypeCombox.currentIndexChanged.connect(self.onComboxEventTypeSelectionChanged)
+        hLayout.addWidget(self.eventTypeCombox)
+        eventNameLabel = QLabel('Name:')
+        hLayout.addWidget(eventNameLabel)
+        self.eventNameEdit = QLineEdit('')
+        self.eventNameEdit.setMinimumHeight(EditHeight)
+        hLayout.addWidget(self.eventNameEdit)
+        hLayout.addStretch(1)
+
+        #----
+        hLayout = QHBoxLayout()
+        vLayout.addLayout(hLayout)
+
+        self.itemModel = QStandardItemModel(0, 4)
+        self.itemModel.setHeaderData(ColumnEventType, Qt.Horizontal, "Type")
+        self.itemModel.setHeaderData(ColumnEventName, Qt.Horizontal, "Name")
+        self.itemModel.setHeaderData(ColumnEventTime, Qt.Horizontal, "Time")
+        self.itemModel.setHeaderData(ColumnEventContent, Qt.Horizontal, "Content")
+        self.events = []
+
+        self.proxyModel = SortFilterProxyModel()
+        self.proxyModel.setSourceModel(self.itemModel)
         self.eventView = QTreeView()
-        # self.proxyView.setRootIsDecorated(False)
-        # self.proxyView.setAlternatingRowColors(True)
-        # self.proxyView.setModel(self.proxyModel)
-        # self.proxyView.setSortingEnabled(True)
-        vLayout.addWidget(self.eventView)
+        self.eventView.setModel(self.proxyModel)
+        self.eventView.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.eventView.setRootIsDecorated(False)
+        self.eventView.setAlternatingRowColors(True)
+        #self.eventView.setSortingEnabled(True)
+        self.eventView.setColumnWidth(0, dpiSize(80))
+        self.eventView.setColumnWidth(1, dpiSize(180))
+        self.eventView.setColumnWidth(2, dpiSize(180))
+        self.eventView.setMouseTracking(True)
+        self.eventView.entered.connect(self.onMouseEnterEventView)
+        self.eventView.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.eventView.customContextMenuRequested.connect(self.onEventViewContextMenu)
+        self.eventView.selectionModel().selectionChanged.connect(self.onEventViewCurrentChanged)
+        hLayout.addWidget(self.eventView)
+        self.eventEdit = QPlainTextEdit()
+        self.eventEdit.setLineWrapMode(QPlainTextEdit.NoWrap)
+        self.eventEdit.setStyleSheet('QPlainTextEdit{font-size:%dpx;font-family:Consolas;}' % dpiSize(14))  #background-color:rgb(204,232,207);
+        hLayout.addWidget(self.eventEdit)
+
+    def onMouseEnterEventView(self, index: QModelIndex) -> None:
+        if not index.isValid():
+            return
+        #index = index.siblingAtColumn(ColumnEventContent)
+        #print(index.row(), index.column())
+        #event = self.itemModel.itemData(index)
+        #print(event)
+        #tooltip = pprint.pformat(self.events[index.row()], indent=2, width=120, compact=True, sort_dicts=False)
+        #QToolTip.showText(QCursor.pos(), tooltip)
+        #QToolTip.showText(QCursor.pos(), tooltip, self.eventView, QRect(), 300000)
+
+    def onEventViewContextMenu(self, pos) -> None:
+        #menu = QMenu(self)
+        #action = menu.addAction('Copy')
+        #menu.exec_(QCursor.pos())
+        pass
+
+    def onEventViewCurrentChanged(self, selection: QItemSelection) -> None:
+        #print(type(selection), selection)
+        index = self.eventView.currentIndex()
+        if index.isValid():
+            text = pprint.pformat(self.events[self.eventView.currentIndex().row()], indent=2, width=120, compact=True, sort_dicts=False)
+            self.eventEdit.setPlainText(text)
+        else:
+            self.eventEdit.clear()
 
     def initUI(self) -> None:
         for app in self.configJson['appNameList']:
@@ -750,6 +841,9 @@ class MainWindow(QMainWindow, astask.AsyncTask):
                 self.videoGridLayout.addWidget(view, row, col)
                 view.show()
         self.viewCount = count
+
+    def onComboxEventTypeSelectionChanged(self, index: int) -> None:
+        pass
 
     def onVideoLabelDoubleClick(self, event: QMouseEvent) -> None:
         # sender = self.sender()  #is none
@@ -1036,17 +1130,26 @@ class MainWindow(QMainWindow, astask.AsyncTask):
 
     def onRTCVideoEventHappen(self, event_time: int, event_name: str, event_json: str, event: dict) -> None:
         '''not run in UI thread'''
-        sdk.log.info(f'{event_name} \n{pprint.pformat(event, indent=2, width=120, compact=True, sort_dicts=False)}')
+        sdk.log.info(f'{event_name} {event_time}\n{pprint.pformat(event, indent=2, width=120, compact=True, sort_dicts=False)}')
         self.RTCVideoEventSignal.emit((event_time, event_name, event_json, event))
 
     def onRTCRoomEventHappen(self, event_time: int, event_name: str, event_json: str, event: dict) -> None:
         '''not run in UI thread'''
-        sdk.log.info(f'{event_name} \n{pprint.pformat(event, indent=2, width=120, compact=True, sort_dicts=False)}')
+        sdk.log.info(f'{event_name} {event_time}\n{pprint.pformat(event, indent=2, width=120, compact=True, sort_dicts=False)}')
         self.RTCRoomEventSignal.emit((event_time, event_name, event_json, event))
 
     def onRTCVideoEvent(self, args: Tuple[int, int, str, dict]):
         '''runs in UI thread'''
         event_time, event_name, event_json, event = args
+        timeStr = datetime.datetime.fromtimestamp(event_time / 1000000).strftime('%Y-%m-%d %H:%M:%S.%f')
+        self.events.append(event)
+        rowCount = self.itemModel.rowCount()
+        self.itemModel.insertRow(rowCount)
+        self.itemModel.setData(self.itemModel.index(rowCount, ColumnEventType), 'RTCVideo')
+        self.itemModel.setData(self.itemModel.index(rowCount, ColumnEventName), event_name)
+        self.itemModel.setData(self.itemModel.index(rowCount, ColumnEventTime), timeStr)
+        self.itemModel.setData(self.itemModel.index(rowCount, ColumnEventContent), str(event))
+        #self.itemModel.setItemData(self.itemModel.index(rowCount, ColumnEventContent), {ColumnEventContent: event})
         func = self.RTCVideoEventHandler.get(event_name, None)
         if func:
             func(event_time, event_name, event_json, event)
@@ -1054,6 +1157,15 @@ class MainWindow(QMainWindow, astask.AsyncTask):
     def onRTCRoomEvent(self, args: Tuple[int, int, str, dict]):
         '''runs in UI thread'''
         event_time, event_name, event_json, event = args
+        timeStr = datetime.datetime.fromtimestamp(event_time / 1000000).strftime('%Y-%m-%d %H:%M:%S.%f')
+        self.events.append(event)
+        rowCount = self.itemModel.rowCount()
+        self.itemModel.insertRow(rowCount)
+        self.itemModel.setData(self.itemModel.index(rowCount, ColumnEventType), 'RTCRoom')
+        self.itemModel.setData(self.itemModel.index(rowCount, ColumnEventName), event_name)
+        self.itemModel.setData(self.itemModel.index(rowCount, ColumnEventTime), timeStr)
+        self.itemModel.setData(self.itemModel.index(rowCount, ColumnEventContent), str(event))
+        #self.itemModel.setItemData(self.itemModel.index(rowCount, ColumnEventContent), {ColumnEventContent: event})
         func = self.RTCRoomEventHandler.get(event_name, None)
         if func:
             func(event_time, event_name, event_json, event)
