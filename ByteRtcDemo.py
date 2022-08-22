@@ -15,6 +15,7 @@ import datetime
 import threading
 import traceback
 import subprocess
+import collections
 from typing import Any, Callable, Dict, List, Tuple
 from PyQt5.QtCore import QItemSelection, QModelIndex, QObject, QRect, QRegExp, QSortFilterProxyModel, QThread, QTimer, Qt, pyqtSignal
 from PyQt5.QtGui import QCloseEvent, QColor, QContextMenuEvent, QCursor, QFont, QIcon, QIntValidator, QKeyEvent, QMouseEvent, QPainter, QPixmap, QStandardItemModel, QTextCursor, QTextOption
@@ -685,16 +686,29 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         hLayout.addWidget(self.checkAutoSetRemoteStreamVideoCanvas)
         hLayout.addStretch(1)
 
+        vSplitter = QSplitter(Qt.Vertical)
+        #vSplitter.setContentsMargins(0, 0, 0, 0)
+        vLayout.addWidget(vSplitter, stretch=1)
+
         self.gridWidget = QWidget()
-        vLayout.addWidget(self.gridWidget, stretch=1)
+        vSplitter.addWidget(self.gridWidget)
         self.videoGridLayout = None
         self.onComboxLayoutSelectionChanged(self.layoutCombox.currentIndex())
 
         self.copyViewHandleAction = QAction('Copy View Handle', self)
         self.copyViewHandleAction.triggered.connect(self.onActionCopyViewHandle)
 
-        hLayout = QHBoxLayout()
-        vLayout.addLayout(hLayout)
+        #----
+        eventWidget = QWidget()
+        vSplitter.addWidget(eventWidget)
+        vSplitter.setSizes([250, 100])
+        vLayout = QVBoxLayout()
+        vLayout.setContentsMargins(0, 0, 0, 0)
+        eventWidget.setLayout(vLayout)
+
+        #----
+        #hLayout = QHBoxLayout()
+        #vLayout.addLayout(hLayout)
 
         eventTypeLabel = QLabel('EventFilter Type:')
         hLayout.addWidget(eventTypeLabel)
@@ -711,6 +725,10 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         self.eventNameEdit = QLineEdit('')
         self.eventNameEdit.setMinimumHeight(EditHeight)
         hLayout.addWidget(self.eventNameEdit)
+        self.eventScrollEndCheck = QCheckBox('AutoScrollToEnd')
+        self.eventScrollEndCheck.setMinimumHeight(dpiSize(ButtonHeight))
+        self.eventScrollEndCheck.setChecked(True)
+        hLayout.addWidget(self.eventScrollEndCheck)
         hLayout.addStretch(1)
 
         #----
@@ -722,7 +740,7 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         self.itemModel.setHeaderData(ColumnEventName, Qt.Horizontal, "Name")
         self.itemModel.setHeaderData(ColumnEventTime, Qt.Horizontal, "Time")
         self.itemModel.setHeaderData(ColumnEventContent, Qt.Horizontal, "Content")
-        self.events = []
+        self.events = collections.deque()
 
         self.proxyModel = SortFilterProxyModel()
         self.proxyModel.setSourceModel(self.itemModel)
@@ -732,8 +750,8 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         self.eventView.setRootIsDecorated(False)
         self.eventView.setAlternatingRowColors(True)
         #self.eventView.setSortingEnabled(True)
-        self.eventView.setColumnWidth(0, dpiSize(80))
-        self.eventView.setColumnWidth(1, dpiSize(180))
+        self.eventView.setColumnWidth(0, dpiSize(70))
+        self.eventView.setColumnWidth(1, dpiSize(204))
         self.eventView.setColumnWidth(2, dpiSize(180))
         self.eventView.setMouseTracking(True)
         self.eventView.entered.connect(self.onMouseEnterEventView)
@@ -743,7 +761,7 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         hLayout.addWidget(self.eventView)
         self.eventEdit = QPlainTextEdit()
         self.eventEdit.setLineWrapMode(QPlainTextEdit.NoWrap)
-        self.eventEdit.setStyleSheet('QPlainTextEdit{font-size:%dpx;font-family:Consolas;}' % dpiSize(14))  #background-color:rgb(204,232,207);
+        self.eventEdit.setStyleSheet('QPlainTextEdit{font-size:%dpx;font-family:Consolas;background-color:rgb(250,250,250);}' % dpiSize(14))
         hLayout.addWidget(self.eventEdit)
 
     def onMouseEnterEventView(self, index: QModelIndex) -> None:
@@ -758,10 +776,15 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         #QToolTip.showText(QCursor.pos(), tooltip, self.eventView, QRect(), 300000)
 
     def onEventViewContextMenu(self, pos) -> None:
-        #menu = QMenu(self)
-        #action = menu.addAction('Copy')
-        #menu.exec_(QCursor.pos())
-        pass
+        menu = QMenu(self)
+        action = menu.addAction('Clear')
+        action.triggered.connect(self.onActionClearEventView)
+        menu.exec_(QCursor.pos())
+
+    def onActionClearEventView(self) -> None:
+        self.itemModel.removeRows(0, self.itemModel.rowCount())
+        self.events.clear()
+        self.eventEdit.clear()
 
     def onEventViewCurrentChanged(self, selection: QItemSelection) -> None:
         #print(type(selection), selection)
@@ -1140,33 +1163,29 @@ class MainWindow(QMainWindow, astask.AsyncTask):
 
     def onRTCVideoEvent(self, args: Tuple[int, int, str, dict]):
         '''runs in UI thread'''
-        event_time, event_name, event_json, event = args
-        timeStr = datetime.datetime.fromtimestamp(event_time / 1000000).strftime('%Y-%m-%d %H:%M:%S.%f')
-        self.events.append(event)
-        rowCount = self.itemModel.rowCount()
-        self.itemModel.insertRow(rowCount)
-        self.itemModel.setData(self.itemModel.index(rowCount, ColumnEventType), 'RTCVideo')
-        self.itemModel.setData(self.itemModel.index(rowCount, ColumnEventName), event_name)
-        self.itemModel.setData(self.itemModel.index(rowCount, ColumnEventTime), timeStr)
-        self.itemModel.setData(self.itemModel.index(rowCount, ColumnEventContent), str(event))
-        #self.itemModel.setItemData(self.itemModel.index(rowCount, ColumnEventContent), {ColumnEventContent: event})
-        func = self.RTCVideoEventHandler.get(event_name, None)
-        if func:
-            func(event_time, event_name, event_json, event)
+        self.handleRTCEvent('RTCVideo', self.RTCVideoEventHandler, args)
 
     def onRTCRoomEvent(self, args: Tuple[int, int, str, dict]):
         '''runs in UI thread'''
+        self.handleRTCEvent('RTCRoom', self.RTCRoomEventHandler, args)
+
+    def handleRTCEvent(self, eventType: str, eventHandler: dict, args: Tuple[int, int, str, dict]):
         event_time, event_name, event_json, event = args
         timeStr = datetime.datetime.fromtimestamp(event_time / 1000000).strftime('%Y-%m-%d %H:%M:%S.%f')
         self.events.append(event)
         rowCount = self.itemModel.rowCount()
         self.itemModel.insertRow(rowCount)
-        self.itemModel.setData(self.itemModel.index(rowCount, ColumnEventType), 'RTCRoom')
+        self.itemModel.setData(self.itemModel.index(rowCount, ColumnEventType), eventType)
         self.itemModel.setData(self.itemModel.index(rowCount, ColumnEventName), event_name)
         self.itemModel.setData(self.itemModel.index(rowCount, ColumnEventTime), timeStr)
         self.itemModel.setData(self.itemModel.index(rowCount, ColumnEventContent), str(event))
         #self.itemModel.setItemData(self.itemModel.index(rowCount, ColumnEventContent), {ColumnEventContent: event})
-        func = self.RTCRoomEventHandler.get(event_name, None)
+        if self.configJson['maxEventRowCount'] > 0 and rowCount > self.configJson['maxEventRowCount']:
+            self.itemModel.removeRow(0)
+            self.events.popleft()
+        if self.eventScrollEndCheck.isChecked():
+            self.eventView.scrollToBottom()
+        func = eventHandler.get(event_name, None)
         if func:
             func(event_time, event_name, event_json, event)
 
