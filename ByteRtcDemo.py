@@ -9,7 +9,6 @@ import math
 import json
 import types
 import ctypes
-import pprint
 import random
 import datetime
 import threading
@@ -18,7 +17,7 @@ import subprocess
 import collections
 from typing import Any, Callable, Dict, List, Tuple
 from PyQt5.QtCore import QItemSelection, QModelIndex, QObject, QRect, QRegExp, QSortFilterProxyModel, QThread, QTimer, Qt, pyqtSignal
-from PyQt5.QtGui import QCloseEvent, QColor, QContextMenuEvent, QCursor, QFont, QIcon, QIntValidator, QKeyEvent, QMouseEvent, QPainter, QPixmap, QStandardItemModel, QTextCursor, QTextOption
+from PyQt5.QtGui import QCloseEvent, QColor, QContextMenuEvent, QCursor, QFont, QIcon, QIntValidator, QKeyEvent, QMouseEvent, QPainter, QPixmap, QStandardItem, QStandardItemModel, QTextCursor, QTextOption
 from PyQt5.QtWidgets import QAbstractItemView, QAction, QApplication, QDesktopWidget, QDialog, QInputDialog, QMainWindow, QMenu, QMessageBox, QWidget, qApp
 from PyQt5.QtWidgets import QCheckBox, QComboBox, QLabel, QLineEdit, QListView, QPushButton, QRadioButton, QSlider, QPlainTextEdit, QTextEdit, QToolTip, QTreeView
 from PyQt5.QtWidgets import QGridLayout, QHBoxLayout, QLayout, QSplitter, QVBoxLayout
@@ -362,16 +361,10 @@ ColumnEventType, ColumnEventName, ColumnEventTime, ColumnEventContent = range(4)
 class SortFilterProxyModel(QSortFilterProxyModel):
     def filterAcceptsRow(self, sourceRow, sourceParent):
         # Do we filter for the date column?
-        if self.filterKeyColumn() == ColumnEventType:
-            # Fetch datetime value.
-            #index = self.sourceModel().index(sourceRow, DATE, sourceParent)
-            #data = self.sourceModel().data(index)
-
-            # Return, if regExp match in displayed format.
-            #return (self.filterRegExp().indexIn(data.toString(Qt.DefaultLocaleShortDate)) >= 0)
-            return True
-
-        # Not our business.
+        if self.filterKeyColumn() == ColumnEventName:
+            index = self.sourceModel().index(sourceRow, ColumnEventName, sourceParent)
+            text = self.sourceModel().data(index)
+            return self.filterRegExp().indexIn(text) >= 0
         return super(SortFilterProxyModel, self).filterAcceptsRow(sourceRow, sourceParent)
 
 
@@ -421,7 +414,7 @@ class MainWindow(QMainWindow, astask.AsyncTask):
     def createUI(self) -> None:
         self.setWindowTitle(DemoTitle)
         self.setWindowIcon(QIcon(IcoPath))
-        self.resize(dpiSize(1280), dpiSize(800))
+        self.resize(dpiSize(1400), dpiSize(800))
         self.intValidator = QIntValidator()
 
         mainWg = QWidget()
@@ -710,21 +703,22 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         #hLayout = QHBoxLayout()
         #vLayout.addLayout(hLayout)
 
-        eventTypeLabel = QLabel('EventFilter Type:')
-        hLayout.addWidget(eventTypeLabel)
-        self.eventTypeCombox = QComboBox()
-        self.eventTypeCombox.setMinimumHeight(dpiSize(ComboxHeight))
-        self.eventTypeCombox.setStyleSheet('QAbstractItemView::item {height: %dpx;}' % dpiSize(ComboxItemHeight))
-        self.eventTypeCombox.setView(QListView())
-        self.eventTypeCombox.addItems(['All', 'RTCVideoEvent', 'RTCRoomEvent'])
-        self.eventTypeCombox.setCurrentIndex(0)
-        self.eventTypeCombox.currentIndexChanged.connect(self.onComboxEventTypeSelectionChanged)
-        hLayout.addWidget(self.eventTypeCombox)
-        eventNameLabel = QLabel('Name:')
+        #eventTypeLabel = QLabel('EventFilter Type:')
+        #hLayout.addWidget(eventTypeLabel)
+        #self.eventTypeCombox = QComboBox()
+        #self.eventTypeCombox.setMinimumHeight(dpiSize(ComboxHeight))
+        #self.eventTypeCombox.setStyleSheet('QAbstractItemView::item {height: %dpx;}' % dpiSize(ComboxItemHeight))
+        #self.eventTypeCombox.setView(QListView())
+        #self.eventTypeCombox.addItems(['All', 'RTCVideoEvent', 'RTCRoomEvent'])
+        #self.eventTypeCombox.setCurrentIndex(0)
+        #self.eventTypeCombox.currentIndexChanged.connect(self.onComboxEventTypeSelectionChanged)
+        #hLayout.addWidget(self.eventTypeCombox)
+        eventNameLabel = QLabel('Event Name Filter:')
         hLayout.addWidget(eventNameLabel)
-        self.eventNameEdit = QLineEdit('')
-        self.eventNameEdit.setMinimumHeight(EditHeight)
-        hLayout.addWidget(self.eventNameEdit)
+        self.eventNameFilterEdit = QLineEdit('')
+        self.eventNameFilterEdit.setMinimumHeight(EditHeight)
+        self.eventNameFilterEdit.textChanged.connect(self.onEventNameFilterEditTextChanged)
+        hLayout.addWidget(self.eventNameFilterEdit)
         self.eventScrollEndCheck = QCheckBox('AutoScrollToEnd')
         self.eventScrollEndCheck.setMinimumHeight(dpiSize(ButtonHeight))
         self.eventScrollEndCheck.setChecked(True)
@@ -740,10 +734,10 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         self.itemModel.setHeaderData(ColumnEventName, Qt.Horizontal, "Name")
         self.itemModel.setHeaderData(ColumnEventTime, Qt.Horizontal, "Time")
         self.itemModel.setHeaderData(ColumnEventContent, Qt.Horizontal, "Content")
-        self.events = collections.deque()
 
         self.proxyModel = SortFilterProxyModel()
         self.proxyModel.setSourceModel(self.itemModel)
+        self.proxyModel.setFilterKeyColumn(ColumnEventName)
         self.eventView = QTreeView()
         self.eventView.setModel(self.proxyModel)
         self.eventView.setEditTriggers(QAbstractItemView.NoEditTriggers)
@@ -767,13 +761,10 @@ class MainWindow(QMainWindow, astask.AsyncTask):
     def onMouseEnterEventView(self, index: QModelIndex) -> None:
         if not index.isValid():
             return
-        #index = index.siblingAtColumn(ColumnEventContent)
-        #print(index.row(), index.column())
-        #event = self.itemModel.itemData(index)
-        #print(event)
-        #tooltip = pprint.pformat(self.events[index.row()], indent=2, width=120, compact=True, sort_dicts=False)
-        #QToolTip.showText(QCursor.pos(), tooltip)
-        #QToolTip.showText(QCursor.pos(), tooltip, self.eventView, QRect(), 300000)
+        index = index.siblingAtColumn(ColumnEventContent)
+        event = index.data(Qt.ItemDataRole.UserRole)
+        QToolTip.showText(QCursor.pos(), util.prettyDict(event))
+        #QToolTip.showText(QCursor.pos(), util.prettyDict(event), self.eventView, QRect(), 300000)
 
     def onEventViewContextMenu(self, pos) -> None:
         menu = QMenu(self)
@@ -783,17 +774,22 @@ class MainWindow(QMainWindow, astask.AsyncTask):
 
     def onActionClearEventView(self) -> None:
         self.itemModel.removeRows(0, self.itemModel.rowCount())
-        self.events.clear()
         self.eventEdit.clear()
 
     def onEventViewCurrentChanged(self, selection: QItemSelection) -> None:
         #print(type(selection), selection)
         index = self.eventView.currentIndex()
         if index.isValid():
-            text = pprint.pformat(self.events[self.eventView.currentIndex().row()], indent=2, width=120, compact=True, sort_dicts=False)
-            self.eventEdit.setPlainText(text)
+            index = self.eventView.currentIndex().siblingAtColumn(ColumnEventContent)
+            event = index.data(Qt.ItemDataRole.UserRole)
+            self.eventEdit.setPlainText(util.prettyDict(event))
         else:
             self.eventEdit.clear()
+
+    def onEventNameFilterEditTextChanged(self):
+        syntax = QRegExp.PatternSyntax(QRegExp.RegExp)
+        regExp = QRegExp(self.eventNameFilterEdit.text(), Qt.CaseInsensitive, syntax)
+        self.proxyModel.setFilterRegExp(regExp)
 
     def initUI(self) -> None:
         for app in self.configJson['appNameList']:
@@ -1153,12 +1149,12 @@ class MainWindow(QMainWindow, astask.AsyncTask):
 
     def onRTCVideoEventHappen(self, event_time: int, event_name: str, event_json: str, event: dict) -> None:
         '''not run in UI thread'''
-        sdk.log.info(f'{event_name} {event_time}\n{pprint.pformat(event, indent=2, width=120, compact=True, sort_dicts=False)}')
+        sdk.log.info(f'{event_name} {event_time}\n{util.prettyDict(event, indent=1, useTab=True)}')
         self.RTCVideoEventSignal.emit((event_time, event_name, event_json, event))
 
     def onRTCRoomEventHappen(self, event_time: int, event_name: str, event_json: str, event: dict) -> None:
         '''not run in UI thread'''
-        sdk.log.info(f'{event_name} {event_time}\n{pprint.pformat(event, indent=2, width=120, compact=True, sort_dicts=False)}')
+        sdk.log.info(f'{event_name} {event_time}\n{util.prettyDict(event, indent=1, useTab=True)}')
         self.RTCRoomEventSignal.emit((event_time, event_name, event_json, event))
 
     def onRTCVideoEvent(self, args: Tuple[int, int, str, dict]):
@@ -1172,17 +1168,28 @@ class MainWindow(QMainWindow, astask.AsyncTask):
     def handleRTCEvent(self, eventType: str, eventHandler: dict, args: Tuple[int, int, str, dict]):
         event_time, event_name, event_json, event = args
         timeStr = datetime.datetime.fromtimestamp(event_time / 1000000).strftime('%Y-%m-%d %H:%M:%S.%f')
-        self.events.append(event)
         rowCount = self.itemModel.rowCount()
+
+        #way 1
+        #itemType = QStandardItem(eventType)
+        #itemName = QStandardItem(event_name)
+        #itemTime = QStandardItem(timeStr)
+        #itemContent = QStandardItem(str(event))
+        #itemContent.setData(event, role=Qt.UserRole)
+        #self.itemModel.insertRow(rowCount, (itemType, itemName, itemTime, itemContent))
+        #self.itemModel.appendRow((itemType, itemName, itemTime, itemContent))
+
+        #way 2
         self.itemModel.insertRow(rowCount)
         self.itemModel.setData(self.itemModel.index(rowCount, ColumnEventType), eventType)
         self.itemModel.setData(self.itemModel.index(rowCount, ColumnEventName), event_name)
         self.itemModel.setData(self.itemModel.index(rowCount, ColumnEventTime), timeStr)
-        self.itemModel.setData(self.itemModel.index(rowCount, ColumnEventContent), str(event))
+        self.itemModel.setData(self.itemModel.index(rowCount, ColumnEventContent), str(event), role=Qt.DisplayRole)
+        self.itemModel.setData(self.itemModel.index(rowCount, ColumnEventContent), event, role=Qt.UserRole)
+
         #self.itemModel.setItemData(self.itemModel.index(rowCount, ColumnEventContent), {ColumnEventContent: event})
         if self.configJson['maxEventRowCount'] > 0 and rowCount > self.configJson['maxEventRowCount']:
             self.itemModel.removeRow(0)
-            self.events.popleft()
         if self.eventScrollEndCheck.isChecked():
             self.eventView.scrollToBottom()
         func = eventHandler.get(event_name, None)

@@ -402,5 +402,26 @@ def getFileSizeStr(path: str) -> str:
     return fileSize2Str(sizeInBytes)
 
 
+def prettyDict(dt: dict, indent: int = 2, useTab: bool = False, parentIndent: int = 0) -> str:
+    strs = []
+    strs.append('{')
+    count = len(dt)
+    index = 0
+    space = '\t' if useTab else ' '
+    for k, v in dt.items():
+        curIndent = parentIndent + indent
+        if isinstance(v, dict):
+            strs.append(f'\n{space * (curIndent)}{repr(k)}: {prettyDict(v, indent, useTab, curIndent)}')
+        else:
+            strs.append(f'\n{space * (curIndent)}{repr(k)}: {repr(v)}')
+        index += 1
+        if index < count:
+            strs.append(',')
+    strs.append('\n')
+    strs.append(space * parentIndent)
+    strs.append('}')
+    return ''.join(strs)
+
+
 if __name__ == '__main__':
     print(1, 2, 3)

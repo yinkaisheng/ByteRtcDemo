@@ -1120,7 +1120,7 @@ class RTCRoom:
             event['stats']['local_rx_quality'] = NetworkQuality(event['stats']['local_rx_quality'])
             event['stats']['local_tx_quality'] = NetworkQuality(event['stats']['local_tx_quality'])
             event['stats']['video_stats']['codec_type'] = VideoCodecType(event['stats']['video_stats']['codec_type'])
-        if event_name == 'onRemoteStreamStats':
+        elif event_name == 'onRemoteStreamStats':
             event['stats']['remote_rx_quality'] = NetworkQuality(event['stats']['remote_rx_quality'])
             event['stats']['remote_tx_quality'] = NetworkQuality(event['stats']['remote_tx_quality'])
         elif event_name == 'onUserLeave':
