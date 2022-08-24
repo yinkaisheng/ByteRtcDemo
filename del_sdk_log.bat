@@ -1,0 +1,1 @@
+del %appdata%\BytertcLog\Logs\*.log

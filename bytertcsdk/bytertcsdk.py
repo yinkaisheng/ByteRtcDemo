@@ -1014,6 +1014,18 @@ class VideoDeviceInfo:
     #def toStruct(self) -> StructVideoDeviceInfo:
 
 
+class StructCloudProxyInfo(ctypes.Structure):
+    _fields_ = [("cloud_proxy_ip", ctypes.c_char_p),
+                ("cloud_proxy_port", ctypes.c_int),
+                ]
+
+
+class StructCloudProxyConfiguration(ctypes.Structure):
+    _fields_ = [("cloud_proxies", ctypes.POINTER(StructCloudProxyInfo)),
+                ("cloud_proxy_count", ctypes.c_int),
+                ]
+
+
 RTCEventCFuncCallback = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.c_int64, ctypes.c_char_p, ctypes.c_char_p)
 
 
@@ -1291,6 +1303,20 @@ class RTCVideo:
             self.dll.byte_deleteRTCVideoEventHandler(self.pIRTCVideoEventHandler)
             self.IRTCVideoEventHandler = 0
             self.pIRTCVideoEventHandler = None
+
+    @ APITime
+    def startCloudProxy(self, proxies: List[Tuple[str, int]]) -> None:
+        if not self.pIRTCVideo:
+            return
+        proxyArray = (StructCloudProxyInfo * len(proxies))(*(StructCloudProxyInfo(it[0].encode(), it[1]) for it in proxies))
+        proxyConfig = StructCloudProxyConfiguration(proxyArray, len(proxies))
+        self.dll.byte_RTCVideo_startCloudProxy(self.pIRTCVideo, ctypes.byref(proxyConfig))
+
+    @ APITime
+    def stopCloudProxy(self) -> None:
+        if not self.pIRTCVideo:
+            return
+        self.dll.byte_RTCVideo_stopCloudProxy(self.pIRTCVideo)
 
     @ APITime
     def setLocalVideoCanvas(self, index: StreamIndex, canvas: VideoCanvas) -> int:

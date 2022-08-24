@@ -10,6 +10,10 @@ def publishCameraAndScreenStreamTest(self, cameraIndex: int):
 
     self.remoteViewStartIndex = 2
 
+    if self.cloudProxyCheck.isChecked():
+        self.onClickCloudProxyCheck()
+    #self.rtcVideo.startCloudProxy([('10.37.144.157', 6779)])
+
     self.rtcVideo.startAudioCapture()
 
     #从界面获取采集宽高等配置

@@ -458,13 +458,21 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         appNameLabel = QLabel('AppName:')
         hLayout.addWidget(appNameLabel)
         self.appNameCombox = QComboBox()
-        self.appNameCombox.setMinimumWidth(dpiSize(120))
+        #self.appNameCombox.setMinimumWidth(dpiSize(120))
         self.appNameCombox.setMinimumHeight(dpiSize(ComboxHeight))
         self.appNameCombox.setStyleSheet('QAbstractItemView::item {height: %dpx;}' % dpiSize(ComboxItemHeight))
         self.appNameCombox.setView(QListView())
         self.appNameCombox.setEditable(True)
         self.appNameCombox.currentIndexChanged.connect(self.onComboxAppNameSelectionChanged)
         hLayout.addWidget(self.appNameCombox)  # , stretch=1
+        self.cloudProxyCheck = QCheckBox('CloudProxy')
+        self.cloudProxyCheck.setMinimumHeight(dpiSize(ButtonHeight))
+        self.cloudProxyCheck.setChecked(self.configJson['cloudProxyChecked'])
+        self.cloudProxyCheck.clicked.connect(self.onClickCloudProxyCheck)
+        hLayout.addWidget(self.cloudProxyCheck)
+        self.cloudProxyEdit = QLineEdit(self.configJson['cloudProxy'])
+        self.cloudProxyEdit.setMinimumHeight(dpiSize(EditHeight))
+        hLayout.addWidget(self.cloudProxyEdit)
         hLayout.addStretch(1)
 
         # ----
@@ -716,9 +724,13 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         eventNameLabel = QLabel('Event Name Filter:')
         hLayout.addWidget(eventNameLabel)
         self.eventNameFilterEdit = QLineEdit('')
-        self.eventNameFilterEdit.setMinimumHeight(EditHeight)
+        self.eventNameFilterEdit.setMinimumHeight(dpiSize(EditHeight))
         self.eventNameFilterEdit.textChanged.connect(self.onEventNameFilterEditTextChanged)
         hLayout.addWidget(self.eventNameFilterEdit)
+        self.eventTipCheck = QCheckBox('EventTip')
+        self.eventTipCheck.setMinimumHeight(dpiSize(ButtonHeight))
+        self.eventTipCheck.setChecked(True)
+        hLayout.addWidget(self.eventTipCheck)
         self.eventScrollEndCheck = QCheckBox('AutoScrollToEnd')
         self.eventScrollEndCheck.setMinimumHeight(dpiSize(ButtonHeight))
         self.eventScrollEndCheck.setChecked(True)
@@ -758,11 +770,21 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         self.eventEdit.setStyleSheet('QPlainTextEdit{font-size:%dpx;font-family:Consolas;background-color:rgb(250,250,250);}' % dpiSize(14))
         hLayout.addWidget(self.eventEdit)
 
+        self.prevToolTipIndex = None
+
     def onMouseEnterEventView(self, index: QModelIndex) -> None:
+        if not self.eventTipCheck.isChecked():
+            return
+        if not self.isActiveWindow():
+            return
         if not index.isValid():
             return
         index = index.siblingAtColumn(ColumnEventContent)
+        if index == self.prevToolTipIndex:
+            return
+        self.prevToolTipIndex = index
         event = index.data(Qt.ItemDataRole.UserRole)
+        QToolTip.hideText()
         QToolTip.showText(QCursor.pos(), util.prettyDict(event))
         #QToolTip.showText(QCursor.pos(), util.prettyDict(event), self.eventView, QRect(), 300000)
 
@@ -1014,12 +1036,25 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         self.codeDlg.raise_()
         self.codeDlg.activateWindow()
 
+    def onClickCloudProxyCheck(self) -> None:
+        if not self.rtcVideo:
+            return
+        if self.cloudProxyCheck.isChecked():
+            proxyList = self.cloudProxyEdit.text().split(';')
+            proxyList = [proxy.split(':') for proxy in proxyList if ':' in proxy]
+            proxyList = [(proxy[0], int(proxy[1])) for proxy in proxyList]
+            self.rtcVideo.startCloudProxy(proxyList)
+        else:
+            self.rtcVideo.stopCloudProxy()
+
     def onClickCreateRtcVideoBtn(self) -> None:
         if self.rtcVideo and self.rtcVideo.IRTCVideo:
             return
         appInfo = self.configJson['appNameList'][self.configJson['appNameIndex']]
         self.rtcVideo = sdk.RTCVideo(app_id=appInfo['appId'], event_handler=self, parameters='{"key": "value"}')
         self.setWindowTitle(f'{DemoTitle}, sdk: {sdk.getVersion()}, APILog: bytesdklog/{sdk.APILogPath}')
+        if self.cloudProxyCheck.isChecked():
+            self.onClickCloudProxyCheck()
 
     def onClickDestroyRtcVideoBtn(self) -> None:
         self.onClickLeaveRoomBtn()
