@@ -729,7 +729,7 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         hLayout.addWidget(self.eventNameFilterEdit)
         self.eventTipCheck = QCheckBox('EventTip')
         self.eventTipCheck.setMinimumHeight(dpiSize(ButtonHeight))
-        self.eventTipCheck.setChecked(True)
+        self.eventTipCheck.setChecked(False)
         hLayout.addWidget(self.eventTipCheck)
         self.eventScrollEndCheck = QCheckBox('AutoScrollToEnd')
         self.eventScrollEndCheck.setMinimumHeight(dpiSize(ButtonHeight))

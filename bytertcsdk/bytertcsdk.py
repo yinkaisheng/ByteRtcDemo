@@ -604,6 +604,13 @@ class DeviceTransportType(MyIntEnum):
     Virtual = 6
 
 
+class VideoSourceType(MyIntEnum):
+    External = 0
+    Internal = 1
+    EncodedWithAutoSimulcast = 2
+    EncodedWithoutAutoSimulcast = 3
+
+
 class StructVideoCanvas(ctypes.Structure):
     _fields_ = [("view", ctypes.c_void_p),
                 ("render_mode", ctypes.c_int),
@@ -1024,6 +1031,50 @@ class StructCloudProxyConfiguration(ctypes.Structure):
     _fields_ = [("cloud_proxies", ctypes.POINTER(StructCloudProxyInfo)),
                 ("cloud_proxy_count", ctypes.c_int),
                 ]
+
+
+class StructCloudProxyConfiguration(ctypes.Structure):
+    _fields_ = [("cloud_proxies", ctypes.POINTER(StructCloudProxyInfo)),
+                ("cloud_proxy_count", ctypes.c_int),
+                ]
+
+
+class StructVideoFrameBuilder(ctypes.Structure):
+    _fields_ = [("frame_type", ctypes.c_int),
+                ("pixel_fmt", ctypes.c_int),
+                ("color_space", ctypes.c_int),
+                ("data", ctypes.c_void_p * 4),
+                ("linesize", ctypes.c_int * 4),
+                ("extra_data", ctypes.c_void_p),
+                ("extra_data_size", ctypes.c_int),
+                ("supplementary_info", ctypes.c_void_p),
+                ("supplementary_info_size", ctypes.c_int),
+                ("size", ctypes.c_int),
+                ("width", ctypes.c_int),
+                ("height", ctypes.c_int),
+                ("rotation", ctypes.c_int),
+                ("flip", ctypes.c_bool),
+                ("hwaccel_buffer", ctypes.c_void_p),
+                ("user_opaque", ctypes.c_void_p),
+                ("timestamp_us", ctypes.c_int64),
+                ("hwaccel_context", ctypes.c_void_p),
+                ("tex_matrix", ctypes.c_float * 16),
+                ("texture_id", ctypes.c_uint32),
+                ("memory_deleter", ctypes.c_void_p),
+                ]
+
+
+class IVideoFrame:
+    def __init__(self, frame: int):
+        self.dll = _DllClient.instance().dll
+        self.frame = frame
+        self.pFrame = ctypes.c_void_p(frame)
+
+    def release(self):
+        if self.frame:
+            self.dll.byte_IVideoFrame_release(self.pFrame)
+            self.frame = 0
+            self.pFrame = None
 
 
 RTCEventCFuncCallback = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.c_int64, ctypes.c_char_p, ctypes.c_char_p)
@@ -1447,6 +1498,18 @@ class RTCVideo:
         if not self.pIRTCVideo:
             return
         self.dll.byte_RTCVideo_stopAudioCapture(self.pIRTCVideo)
+
+    @ APITime
+    def setVideoSourceType(self, stream_index: StreamIndex, source_type: VideoSourceType) -> None:
+        if not self.pIRTCVideo:
+            return
+        self.dll.byte_RTCVideo_setVideoSourceType(self.pIRTCVideo, stream_index, source_type)
+
+    def pushExternalVideoFrame(self, frame: IVideoFrame) -> None:
+        if not self.pIRTCVideo:
+            return
+        self.dll.byte_RTCVideo_pushExternalVideoFrame(self.pIRTCVideo, frame.pFrame)
+        frame.release()
 
     @ APITime
     def createRTCRoom(self, room_id: str) -> RTCRoom:
