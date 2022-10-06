@@ -24,10 +24,10 @@ else:
     SdkDir = 'bytertcsdk'
 SdkDirFull = os.path.join(ExeDir, SdkDir)  # d:\Codes\Python\ByteRtcDemo\bytertcsdk
 # the followings must be referenced by full name, such as bytertcsdk.bytertcsdk.SdkBinDir
-SdkBinDir = ''  # binx86_3.43.102
+SdkBinDir = ''  # binx86_3.45.104
 SdkBinDirFull = ''  # d:\Codes\Python\ByteRtcDemo\bytertcsdk\binx86_3.43.102
 SdkDllName = 'VolcEngineRTC.dll'
-SdkVersion = ''  # '3.43.102'
+SdkVersion = ''  # '3.45.104' get from folder name
 APILogPath = f'pid{os.getpid()}_api.log'
 DEVICE_ID_LENGTH = 512
 
@@ -92,8 +92,11 @@ def APITime(func):
     @functools.wraps(func)
     def API(*args, **kwargs):
         global LastAPICall
-        # argsstr = ', '.join(f"'{arg}'" if isinstance(arg, str) else str(arg) for arg in args if not isinstance(arg, RTCVideo))
-        argsstr = ', '.join(f"'{arg}'" if isinstance(arg, str) else str(arg) for arg in args[1:])
+        if '.' in func.__qualname__:
+            logArgs = args[1:]  #class method, exclude self
+        else:
+            logArgs = args
+        argsstr = ', '.join(f"'{arg}'" if isinstance(arg, str) else str(arg) for arg in logArgs)
         keystr = ', '.join('{}={}'.format(k, f"'{v}'" if isinstance(v, str) else v) for k, v in kwargs.items())
         if keystr:
             if argsstr:
@@ -108,6 +111,29 @@ def APITime(func):
         log.info(f'{func.__qualname__} returns {ret}, costTime={costTime:.3} s')
         return ret
     return API
+
+
+def ElapsedTime(runTimes=1):
+    def inner(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            #argstr = ','.join(str(arg) for arg in args)
+            #kwstr = ','.join('{}={}'.format(k, v) for k, v in kwargs.items())
+            #instr = ','.join(s for s in (argstr, kwstr) if s)
+            instr = ''
+            print(f'call {Fore.Cyan}{func.__name__}({instr})')
+            start = time.monotonic()
+            for i in range(runTimes):
+                ret = func(*args, **kwargs)
+            end = time.monotonic()
+            total = end - start
+            avg = total / runTimes
+            print(
+                f'{Fore.Cyan}{func.__name__}{Fore.Reset} run times {Fore.DarkGreen}{runTimes}{Fore.Reset}'
+                f', cost {Fore.DarkGreen}{total:.6f}{Fore.Reset}s, avg cost {Fore.DarkGreen}{avg:.6f}{Fore.Reset}s\n')
+            return ret
+        return wrapper
+    return inner
 
 
 class MyIntEnum(IntEnum):
@@ -138,6 +164,12 @@ class _DllClient:
             self.dll.byte_createRTCVideo.restype = ctypes.c_void_p
             self.dll.byte_getErrorDescription.restype = ctypes.c_char_p
             self.dll.byte_getSDKVersion.restype = ctypes.c_char_p
+            self.dll.byte_buildVideoFrame.restype = ctypes.c_void_p
+            self.dll.byte_IVideoFrame_getPlaneData.restype = ctypes.c_void_p
+            self.dll.byte_RTCRoom_sendRoomMessage.restype = ctypes.c_int64
+            self.dll.byte_RTCRoom_sendRoomBinaryMessage.restype = ctypes.c_int64
+            self.dll.byte_RTCRoom_sendUserMessage.restype = ctypes.c_int64
+            self.dll.byte_RTCRoom_sendUserBinaryMessage.restype = ctypes.c_int64
             self.dll.byte_RTCVideo_getScreenCaptureSourceList.restype = ctypes.c_void_p
             self.dll.byte_RTCVideo_createRTCRoom.restype = ctypes.c_void_p
             self.dll.byte_RTCVideo_getVideoDeviceManager.restype = ctypes.c_void_p
@@ -161,6 +193,18 @@ def chooseSdkBinDir(sdkBinDir: str):
     else:
         SdkBinDirFull = os.path.join(ExeDir, SdkDir, SdkBinDir)
     print(f'SdkBinDir={SdkBinDir}, SdkVersion={SdkVersion}, SdkBinDirFull={SdkBinDirFull}')
+
+
+class Env(MyIntEnum):
+    Product = 0,
+    BOE = 1
+    Test = 2
+
+
+@ APITime
+def setEnv(env: Env) -> int:
+    ret = _DllClient.instance().dll.byte_setEnv(env)
+    return ret
 
 
 @ APITime
@@ -187,6 +231,24 @@ class VideoStreamScaleMode(MyIntEnum):
     Stretch = 1
     FitWithCropping = 2
     FitWithFilling = 3
+
+
+class VideoSuperResolutionMode(MyIntEnum):
+    Off = 0
+    On = 1
+
+
+class VideoSuperResolutionModeChangedReason(MyIntEnum):
+    APIOff = 0
+    APIOn = 1
+    ResolutionExceed = 2
+    OverUse = 3
+    DeviceNotSupport = 4
+    DynamicClose = 5
+    OtherSettingDisabled = 6
+    OtherSettingEnabled = 7
+    NoComponent = 100
+    StreamNotExist = 101
 
 
 class RoomProfileType(MyIntEnum):
@@ -508,6 +570,12 @@ class EchoTestResult(MyIntEnum):
     InternalError = 7
 
 
+class MessageConfig(MyIntEnum):
+    ReliableOrdered = 0
+    UnreliableOrdered = 1
+    UnreliableUnordered = 2
+
+
 class MediaStreamType(MyIntEnum):
     Audio = 1 << 0
     Video = 1 << 1
@@ -609,6 +677,53 @@ class VideoSourceType(MyIntEnum):
     Internal = 1
     EncodedWithAutoSimulcast = 2
     EncodedWithoutAutoSimulcast = 3
+
+
+class VideoFrameType(MyIntEnum):
+    RawMemory = 0
+    CVPixelBuffer = 1
+    GLTexture = 2
+    Cuda = 3
+    D3D11 = 4
+    D3D9 = 5
+    JavaFrame = 6
+    VAAPI = 7
+
+
+class VideoPixelFormat(MyIntEnum):
+    Unknown = 0
+    I420 = 1
+    NV12 = 2
+    NV21 = 3
+    RGB24 = 4
+    RGBA = 5
+    ARGB = 6
+    BGRA = 7
+    Texture2D = 0x0DE1
+    TextureOES = 0x8D65
+
+
+class PublicStreamErrorCode(MyIntEnum):
+    OK = 0
+    PushInvalidParam = 1191
+    PushInvalidStatus = 1192
+    PushInternalError = 1193
+    PushFailed = 1195
+    PushTimeout = 1196
+
+
+class SEIMessageSourceType(MyIntEnum):
+    Default = 0
+    System = 1
+
+
+class AudioDumpStatus(MyIntEnum):
+    StartFailure = 0
+    StartSuccess = 1
+    StopFailure = 2
+    StopSuccess = 3
+    RunningFailure = 4
+    RunningSuccess = 5
 
 
 class StructVideoCanvas(ctypes.Structure):
@@ -1018,7 +1133,7 @@ class VideoDeviceInfo:
 
     __repr__ = __str__
 
-    #def toStruct(self) -> StructVideoDeviceInfo:
+    # def toStruct(self) -> StructVideoDeviceInfo:
 
 
 class StructCloudProxyInfo(ctypes.Structure):
@@ -1070,11 +1185,51 @@ class IVideoFrame:
         self.frame = frame
         self.pFrame = ctypes.c_void_p(frame)
 
+    def __del__(self):
+        self.release()
+
+    def frameType(self) -> VideoFrameType:
+        if self.pFrame:
+            frameType = self.dll.byte_IVideoFrame_frameType(self.pFrame)
+            return VideoFrameType(frameType)
+
+    def pixelFormat(self) -> VideoPixelFormat:
+        if self.pFrame:
+            pixelFormat = self.dll.byte_IVideoFrame_pixelFormat(self.pFrame)
+            return VideoPixelFormat(pixelFormat)
+
+    def width(self) -> int:
+        if self.pFrame:
+            return self.dll.byte_IVideoFrame_width(self.pFrame)
+
+    def height(self) -> int:
+        if self.pFrame:
+            return self.dll.byte_IVideoFrame_height(self.pFrame)
+
+    def numberOfPlanes(self) -> int:
+        if self.pFrame:
+            return self.dll.byte_IVideoFrame_numberOfPlanes(self.pFrame)
+
+    def getPlaneStride(self, plane_index: int) -> int:
+        if self.pFrame:
+            return self.dll.byte_IVideoFrame_getPlaneStride(self.pFrame, plane_index)
+
+    def getPlaneData(self, plane_index: int) -> ctypes.c_void_p:
+        if self.pFrame:
+            ptrValue = self.dll.byte_IVideoFrame_getPlaneData(self.pFrame, plane_index)
+            return ctypes.c_void_p(ptrValue)
+
     def release(self):
         if self.frame:
             self.dll.byte_IVideoFrame_release(self.pFrame)
             self.frame = 0
             self.pFrame = None
+
+
+def buildVideoFrame(builder: StructVideoFrameBuilder) -> IVideoFrame:
+    ptrValue = _DllClient.instance().dll.byte_buildVideoFrame(ctypes.byref(builder))
+    if ptrValue:
+        return IVideoFrame(ptrValue)
 
 
 RTCEventCFuncCallback = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.c_int64, ctypes.c_char_p, ctypes.c_char_p)
@@ -1085,7 +1240,7 @@ class IRTCRoomEventHandler:
         """
         event_time: micro seconds since epoch
         """
-        print(f'{event_name} {event_json}')
+        print(f'{room_id} {event_name} {event_json}')
 
 
 class IRTCVideoEventHandler:
@@ -1178,6 +1333,58 @@ class RTCRoom:
             return
         self.dll.byte_RTCRoom_unpublishScreen(self.pIRTCRoom, stream_type)
 
+    @APITime
+    def subscribeStream(self, user_id: str, stream_type: MediaStreamType) -> None:
+        if not self.pIRTCRoom:
+            return
+        self.dll.byte_RTCRoom_subscribeStream(self.pIRTCRoom, user_id.encode(), stream_type)
+
+    @APITime
+    def unsubscribeStream(self, user_id: str, stream_type: MediaStreamType) -> None:
+        if not self.pIRTCRoom:
+            return
+        self.dll.byte_RTCRoom_unsubscribeStream(self.pIRTCRoom, user_id.encode(), stream_type)
+
+    @APITime
+    def subscribeScreen(self, user_id: str, stream_type: MediaStreamType) -> None:
+        if not self.pIRTCRoom:
+            return
+        self.dll.byte_RTCRoom_subscribeScreen(self.pIRTCRoom, user_id.encode(), stream_type)
+
+    @APITime
+    def unsubscribeScreen(self, user_id: str, stream_type: MediaStreamType) -> None:
+        if not self.pIRTCRoom:
+            return
+        self.dll.byte_RTCRoom_unsubscribeScreen(self.pIRTCRoom, user_id.encode(), stream_type)
+
+    @APITime
+    def sendRoomMessage(self, message: str) -> None:
+        if not self.pIRTCRoom:
+            return
+        ret = self.dll.byte_RTCRoom_sendRoomMessage(self.pIRTCRoom, message.encode())
+        return ret
+
+    @APITime
+    def sendRoomBinaryMessage(self, message: bytes) -> None:
+        if not self.pIRTCRoom:
+            return
+        ret = self.dll.byte_RTCRoom_sendRoomBinaryMessage(self.pIRTCRoom, message, len(message))
+        return ret
+
+    @APITime
+    def sendUserMessage(self, user_id: str, message: str, config: MessageConfig) -> None:
+        if not self.pIRTCRoom:
+            return
+        ret = self.dll.byte_RTCRoom_sendUserMessage(self.pIRTCRoom, user_id.encode(), message.encode(), config)
+        return ret
+
+    @APITime
+    def sendUserBinaryMessage(self, user_id: str, message: bytes, config: MessageConfig) -> None:
+        if not self.pIRTCRoom:
+            return
+        ret = self.dll.byte_RTCRoom_sendUserBinaryMessage(self.pIRTCRoom, user_id.encode(), message, len(message), config)
+        return ret
+
     def __modifyEventIfHasEnum(self, event_name: str, event: dict) -> None:
         if event_name == 'onLocalStreamStats':
             event['stats']['local_rx_quality'] = NetworkQuality(event['stats']['local_rx_quality'])
@@ -1186,6 +1393,10 @@ class RTCRoom:
         elif event_name == 'onRemoteStreamStats':
             event['stats']['remote_rx_quality'] = NetworkQuality(event['stats']['remote_rx_quality'])
             event['stats']['remote_tx_quality'] = NetworkQuality(event['stats']['remote_tx_quality'])
+            if 'codec_type' in event['stats']['video_stats']:
+                event['stats']['video_stats']['codec_type'] = VideoCodecType(event['stats']['video_stats']['codec_type'])
+            if 'super_resolution_mode' in event['stats']['video_stats']:
+                event['stats']['video_stats']['super_resolution_mode'] = VideoSuperResolutionMode(event['stats']['video_stats']['super_resolution_mode'])
         elif event_name == 'onUserLeave':
             event['reason'] = UserOfflineReason(event['reason'])
         elif event_name == 'onMuteAllRemoteAudio':
@@ -1377,8 +1588,23 @@ class RTCVideo:
         return ret
 
     @ APITime
-    def setRemoteStreamVideoCanvas(self, stream_key: RemoteStreamKey, canvas: VideoCanvas) -> None:
+    def setRemoteVideoCanvas(self, stream_key: RemoteStreamKey, canvas: VideoCanvas) -> None:
+        '''sdk version >= 3.47'''
         if not self.pIRTCVideo:
+            return
+        if SdkVersion < '3.47':
+            log.error('does not support this API, use setRemoteStreamVideoCanvas')
+            return
+        self.dll.byte_RTCVideo_setRemoteVideoCanvas(self.pIRTCVideo, ctypes.byref(stream_key.toStruct()),
+                                                    ctypes.byref(canvas.toStruct()))
+
+    @ APITime
+    def setRemoteStreamVideoCanvas(self, stream_key: RemoteStreamKey, canvas: VideoCanvas) -> None:
+        '''sdk version < 3.47'''
+        if not self.pIRTCVideo:
+            return
+        if SdkVersion >= '3.47':
+            log.error('does not support this API, use setRemoteVideoCanvas')
             return
         self.dll.byte_RTCVideo_setRemoteStreamVideoCanvas(self.pIRTCVideo, ctypes.byref(stream_key.toStruct()),
                                                           ctypes.byref(canvas.toStruct()))
@@ -1419,6 +1645,17 @@ class RTCVideo:
         ret = self.dll.byte_RTCVideo_setVideoEncoderConfigSolutions(self.pIRTCVideo, index, cSolutions, len(solutions))
         return ret
 
+    @APITime
+    def enableSimulcastMode(self, enabled: bool):
+        ret = None if SdkVersion >= '3.47' else -1
+        if not self.pIRTCVideo:
+            return ret
+        if SdkVersion >= '3.47':
+            self.dll.byte_RTCVideo_enableSimulcastMode(self.pIRTCVideo, int(enabled))
+        else:
+            ret = self.dll.byte_RTCVideo_enableSimulcastMode(self.pIRTCVideo, int(enabled))
+        return ret
+
     @ APITime
     def getVideoDeviceManager(self) -> VideoDeviceManager:
         if not self.pIRTCVideo:
@@ -1440,16 +1677,16 @@ class RTCVideo:
         self.dll.byte_RTCVideo_stopVideoCapture(self.pIRTCVideo)
 
     @ APITime
-    def startScreenCapture(self, type_: ScreenMediaType, context: int) -> None:
+    def takeLocalSnapshot(self, stream_index: StreamIndex) -> int:
         if not self.pIRTCVideo:
-            return
-        self.dll.byte_RTCVideo_startScreenCapture(self.pIRTCVideo, type_, ctypes.c_void_p(context))
+            return -1
+        return self.dll.byte_RTCVideo_takeLocalSnapshot(self.pIRTCVideo, stream_index, self.pIRTCVideoEventHandler)
 
     @ APITime
-    def startScreenCapture2(self, type_: ScreenMediaType, bundle_id: str) -> None:
+    def takeRemoteSnapshot(self, stream_key: RemoteStreamKey) -> int:
         if not self.pIRTCVideo:
-            return
-        self.dll.byte_RTCVideo_startScreenCapture2(self.pIRTCVideo, type_, bundle_id.encode())
+            return -1
+        return self.dll.byte_RTCVideo_takeRemoteSnapshot(self.pIRTCVideo, ctypes.byref(stream_key.toStruct()), self.pIRTCVideoEventHandler)
 
     @ APITime
     def getScreenCaptureSourceList(self) -> List[ScreenCaptureSourceInfo]:
@@ -1505,11 +1742,21 @@ class RTCVideo:
             return
         self.dll.byte_RTCVideo_setVideoSourceType(self.pIRTCVideo, stream_index, source_type)
 
+    @ APITime
+    def setRemoteVideoSuperResolution(self, stream_key: RemoteStreamKey, mode: VideoSuperResolutionMode) -> None:
+        if not self.pIRTCVideo:
+            return
+        if SdkVersion < '3.46':
+            log.error('does not support this API')
+            return -1
+        ret = self.dll.byte_RTCVideo_setRemoteVideoSuperResolution(self.pIRTCVideo, ctypes.byref(stream_key.toStruct()), mode)
+        return ret
+
     def pushExternalVideoFrame(self, frame: IVideoFrame) -> None:
         if not self.pIRTCVideo:
             return
         self.dll.byte_RTCVideo_pushExternalVideoFrame(self.pIRTCVideo, frame.pFrame)
-        frame.release()
+        # frame.release() #do not call release, sdk will call it
 
     @ APITime
     def createRTCRoom(self, room_id: str) -> RTCRoom:
@@ -1606,6 +1853,10 @@ class RTCVideo:
             event['key']['stream_index'] = StreamIndex(event['key']['stream_index'])
             event['state'] = RemoteVideoState(event['state'])
             event['reason'] = RemoteVideoStateChangeReason(event['reason'])
+        elif event_name == 'onRemoteVideoSuperResolutionModeChanged':
+            event['stream_key']['stream_index'] = StreamIndex(event['stream_key']['stream_index'])
+            event['mode'] = VideoSuperResolutionMode(event['mode'])
+            event['reason'] = VideoSuperResolutionModeChangedReason(event['reason'])
         elif event_name == 'onAudioFrameSendStateChanged':
             event['state'] = FirstFrameSendState(event['state'])
         elif event_name == 'onVideoFrameSendStateChanged':
@@ -1621,7 +1872,18 @@ class RTCVideo:
         elif event_name == 'onFirstLocalAudioFrame':
             event['index'] = StreamIndex(event['index'])
         elif event_name == 'onEchoTestResult':
-            event['result'] = StreamIndex(event['result'])
+            event['result'] = EchoTestResult(event['result'])
+        elif event_name == 'onPlayPublicStreamResult':
+            if SdkVersion >= '3.47':
+                event['errorCode'] = PublicStreamErrorCode(event['errorCode'])
+        elif event_name == 'onPushPublicStreamResult':
+            if SdkVersion >= '3.47':
+                event['errorCode'] = PublicStreamErrorCode(event['errorCode'])
+        elif event_name == 'onPublicStreamSEIMessageReceived':
+            if SdkVersion >= '3.47':
+                event['source_type'] = SEIMessageSourceType(event['source_type'])
+        elif event_name == 'onAudioDumpStateChanged':   # >=3.47
+            event['status'] = AudioDumpStatus(event['status'])
 
 
 if __name__ == '__main__':

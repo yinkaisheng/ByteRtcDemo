@@ -1,1 +1,1 @@
-start pyw ByteRtcDemo.py
+start pythonw.exe ByteRtcDemo.py

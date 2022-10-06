@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 # author: yinkaisheng@foxmail.com
 import os
+import io
 import sys
 import json
 import ctypes
@@ -10,7 +11,7 @@ import shutil
 # import socket
 import zipfile
 import datetime
-from typing import Any, Callable, Iterator, Dict, List, Tuple
+from typing import Any, Callable, Deque, Dict, Iterator, List, Tuple
 
 
 _SelfFileName = os.path.split(__file__)[1]
@@ -79,14 +80,31 @@ def getFileText(path: str, encoding: str = 'utf-8', checkExist: bool = True) -> 
         return fin.read()
 
 
-def writeTextFile(text: str, path: str, encoding: str = 'utf-8'):
+def writeTextFile(path: str, text: str, encoding: str = 'utf-8'):
     with open(path, 'wt', encoding=encoding, errors='ignore') as fout:
         fout.write(text)
 
 
-def appendTextFile(text: str, path: str, encoding: str = 'utf-8'):
+def appendTextFile(path: str, text: str, encoding: str = 'utf-8'):
     with open(path, 'a+', encoding=encoding, errors='ignore') as fout:
         fout.write(text)
+
+
+def getFileBytes(path: str, checkExist: bool = True) -> bytes:
+    if checkExist and not os.path.exists(path):
+        return None
+    with open(path, 'rb') as fin:
+        return fin.read()
+
+
+def writeBinaryFile(path: str, data: bytes):
+    with open(path, 'wb') as fout:
+        fout.write(data)
+
+
+def appendBinaryFile(path: str, data: bytes):
+    with open(path, 'ab+') as fout:
+        fout.write(data)
 
 
 def pickleLoad(path: str) -> Any:
@@ -119,7 +137,7 @@ def walkTree(root, getChildren: Callable[[TreeNode], List[TreeNode]] = None,
     """
     Walk a tree not using recursive algorithm.
     root: a tree node.
-    getChildren: Callable[[TreeNode], List[TreeNode]], function(treeNode: TreeNode) -> List[TreeNode].
+    getChildren: Callable[[TreeNode], List[TreeNode]], function(treeNode: TreeNode) -> List[TreeNode] or Deque[TreeNode].
     getNextSibling: Callable[[TreeNode], TreeNode], function(treeNode: TreeNode) -> TreeNode.
     getNextSibling: Callable[[TreeNode], TreeNode], function(treeNode: TreeNode) -> TreeNode.
     yieldCondition: Callable[[TreeNode, int], bool], function(treeNode: TreeNode, depth: int) -> bool.
@@ -185,24 +203,36 @@ def walkTree(root, getChildren: Callable[[TreeNode], List[TreeNode]] = None,
                 depth -= 1
 
 
-def listDir(path: Tuple[str, bool, str]) -> List[Tuple[str, bool, str]]:
-    '''returns Tuple[filePath:str, isDir:bool, fileName:str]'''
-    if path[1]:
+def listDir(pathTuple: Tuple[str, str, bool, bool]) -> List[Tuple[str, str, bool, bool]]:
+    '''returns a list of Tuple[filePath:str, fileName:str, isDir:bool, includeFiles:bool]'''
+    filePath = pathTuple[0]
+    isDir = pathTuple[2]
+    includeFiles = pathTuple[3]
+    if isDir:
         files = []
         files2 = []
-        for it in os.listdir(path[0]):
-            childPath = os.path.join(path[0], it)
+        for it in os.listdir(filePath):
+            childPath = os.path.join(filePath, it)
             if os.path.isdir(childPath):
-                files.append((childPath, True, it))
-            else:
-                files2.append((childPath, False, it))
+                files.append((childPath, it, True, includeFiles))
+            elif os.path.isfile(childPath):
+                if includeFiles:
+                    files2.append((childPath, it, False, includeFiles))
+            elif os.path.islink(childPath):
+                srcPath = os.readlink(childPath)
+                if os.path.isdir(srcPath):
+                    files.append((childPath, it, True, includeFiles))
+                else:
+                    if includeFiles:
+                        files2.append((childPath, it, False, includeFiles))
         files.extend(files2)
         return files
 
 
-def walkDir(absDir: str, maxDepth: int = 0xFFFFFFFF) -> Iterator[Tuple[str, bool, str, int, int]]:
-    for (filePath, isDir, fileName), depth, remainCount in walkTree((absDir, True, ''), getChildren=listDir, includeRoot=False, maxDepth=maxDepth):
-        yield filePath, isDir, fileName, depth, remainCount
+def walkDir(absDir: str, maxDepth: int = 0xFFFFFFFF, includeFiles: bool = True) -> Iterator[Tuple[str, str, bool, int, int]]:
+    for (filePath, fileName, isDir, includeFiles), depth, remainCount in walkTree(
+            (absDir, '', True, includeFiles), getChildren=listDir, includeRoot=False, maxDepth=maxDepth):
+        yield filePath, fileName, isDir, depth, remainCount
 
 
 def copyFile(src: str, dst: str, log: bool = True) -> None:
@@ -231,7 +261,7 @@ def copyDir(src: str, dst: str, log: bool = True) -> int:
     if not os.path.exists(dst):
         os.makedirs(dst)
     fileCount = 0
-    for filePath, isDir, fileName, depth, remainCount in walkDir(src):
+    for filePath, fileName, isDir, depth, remainCount in walkDir(src):
         relativeName = filePath[srcLen + 1:]
         dstPath = dst + relativeName
         if isDir:
@@ -249,7 +279,7 @@ def copyDir(src: str, dst: str, log: bool = True) -> int:
 def renameFilesInDir(src: str, find: str, replace: str, log: bool = True) -> int:
     """return int, files count that are renamed"""
     fileCount = 0
-    for filePath, isDir, fileName, depth, remainCount in walkDir(src):
+    for filePath, fileName, isDir, depth, remainCount in walkDir(src):
         if not isDir:
             newFileName = fileName.replace(find, replace)
             if fileName != newFileName:
@@ -281,6 +311,40 @@ def walkZip(zipPath: str, getFileObjCondition: Callable[[zipfile.ZipInfo], bool]
                     yield False, zipInfo, None
 
 
+def zipFile(srcPath: str, dstPath: str, nameInZip: str = None) -> None:
+    '''if nameInZip is None, the dir tree in zip file is the same as srcPath'''
+    with zipfile.ZipFile(dstPath, 'w', zipfile.ZIP_LZMA) as zf:
+        if nameInZip:
+            zf.writestr(nameInZip, getFileBytes(srcPath))
+        else:
+            zf.write(srcPath)
+
+
+def zipBytesToFile(src: bytes, dstPath: str, nameInZip: str) -> None:
+    with zipfile.ZipFile(dstPath, 'w', zipfile.ZIP_LZMA) as zf:
+        zf.writestr(nameInZip, src)
+
+
+def zipFileToBytes(srcPath: bytes, nameInZip: str = None) -> bytes:
+    '''if nameInZip is None, the dir tree in zip file is the same as srcPath'''
+    memFile = io.BytesIO()
+    with zipfile.ZipFile(memFile, 'w', zipfile.ZIP_LZMA) as zf:
+        if nameInZip:
+            zf.writestr(nameInZip, getFileBytes(srcPath))
+        else:
+            zf.write(srcPath)
+    memBytes = memFile.getvalue()
+    return memBytes
+
+
+def zipBytesToBytes(src: bytes, nameInZip: str) -> bytes:
+    memFile = io.BytesIO()
+    with zipfile.ZipFile(memFile, 'w', zipfile.ZIP_LZMA) as zf:
+        zf.writestr(nameInZip, src)
+    memBytes = memFile.getvalue()
+    return memBytes
+
+
 def extractOneFileInZip(zipPath: str, dstDir: str, fileEnd: str, log: bool = True) -> bool:
     """
     fileEnd: str.
@@ -301,16 +365,16 @@ def extractOneFileInZip(zipPath: str, dstDir: str, fileEnd: str, log: bool = Tru
     return False
 
 
-def extractZip(zipPath: str, dstDir: str, subDir: str = None, log: bool = True) -> int:
+def extractZip(zipPath: str, dstDir: str, subDirInZip: str = None, log: bool = True) -> int:
     """
-    subDir: str, if None, extrac all contents to dstDir, if not None, must not be end with / and can not use \\ in subDir.
+    subDirInZip: str, if None, extrac all contents to dstDir, if not None, must not be end with / and can not use \\ in subDirInZip.
     dstDir: str, should end with \\(not must).
     returns int, files count.
     """
     if dstDir[-1] != os.sep:
         dstDir = dstDir + os.sep
     fileCount = 0
-    if not subDir:
+    if not subDirInZip:
         for isDir, zipInfo, zipFile in walkZip(zipPath, lambda zInfo: True):
             if isDir:
                 dstPath = dstDir + zipInfo.filename
@@ -324,35 +388,35 @@ def extractZip(zipPath: str, dstDir: str, subDir: str = None, log: bool = True) 
                     shutil.copyfileobj(zipFile, fout)
                 fileCount += 1
                 if log:
-                    print(f'copy file {fileCount}: {dstPath}')
+                    print(f'extract file {fileCount}: {dstPath}')
         return fileCount
 
     def checkFunc(zipInfo: zipfile.ZipInfo) -> bool:
-        return subDir in zipInfo.filename
+        return subDirInZip in zipInfo.filename
 
     foundDir = False
     for isDir, zipInfo, zipFile in walkZip(zipPath, checkFunc):
         if isDir:
-            index = zipInfo.filename.find(subDir)
+            index = zipInfo.filename.find(subDirInZip)
             if not foundDir and index >= 0:
                 foundDir = True
             if foundDir:
                 if index < 0:
                     break
-                createDir = dstDir + zipInfo.filename[index + len(subDir) + 1:]
+                createDir = dstDir + zipInfo.filename[index + len(subDirInZip) + 1:]
                 if not os.path.exists(createDir):
                     os.makedirs(createDir)
                 if log:
                     print(f'create dir: {createDir}')
         else:
             if zipFile:
-                index = zipInfo.filename.find(subDir)
-                dstPath = dstDir + zipInfo.filename[index + len(subDir) + 1:]
+                index = zipInfo.filename.find(subDirInZip)
+                dstPath = dstDir + zipInfo.filename[index + len(subDirInZip) + 1:]
                 with open(dstPath, 'wb') as fout:
                     shutil.copyfileobj(zipFile, fout)
                 fileCount += 1
                 if log:
-                    print(f'copy file {fileCount}: {dstPath}')
+                    print(f'extract file {fileCount}: {dstPath}')
             else:
                 if foundDir:
                     break
@@ -402,26 +466,22 @@ def getFileSizeStr(path: str) -> str:
     return fileSize2Str(sizeInBytes)
 
 
-def prettyDict(dt: dict, indent: int = 2, useTab: bool = False, parentIndent: int = 0) -> str:
+def prettyDict(dt: dict, indent: int = 2, indentStr: str = ' ', parentIndent: int = 0) -> str:
     strs = []
     strs.append('{')
     count = len(dt)
     index = 0
-    space = '\t' if useTab else ' '
     for k, v in dt.items():
         curIndent = parentIndent + indent
         if isinstance(v, dict):
-            strs.append(f'\n{space * (curIndent)}{repr(k)}: {prettyDict(v, indent, useTab, curIndent)}')
+            strs.append(f'\n{indentStr * (curIndent)}{repr(k)}: {prettyDict(v, indent, indentStr, curIndent)}')
         else:
-            strs.append(f'\n{space * (curIndent)}{repr(k)}: {repr(v)}')
+            strs.append(f'\n{indentStr * (curIndent)}{repr(k)}: {repr(v)}')
         index += 1
         if index < count:
             strs.append(',')
     strs.append('\n')
-    strs.append(space * parentIndent)
+    strs.append(indentStr * parentIndent)
     strs.append('}')
     return ''.join(strs)
 
-
-if __name__ == '__main__':
-    print(1, 2, 3)

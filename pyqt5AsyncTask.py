@@ -1,5 +1,6 @@
 #!python3
 # -*- coding: utf-8 -*-
+# author: yinkaisheng@foxmail.com
 import time
 from typing import (Any, Callable, Dict, List, Tuple)
 import threading

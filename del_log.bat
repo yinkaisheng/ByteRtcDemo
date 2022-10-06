@@ -1,1 +1,1 @@
-rmdir /s /q bytesdklog
+del bytesdklog\*.log

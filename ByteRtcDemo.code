@@ -1,0 +1,149 @@
+name=createRTCVideo
+code=
+
+if self.rtcVideo is None:
+    appInfo = self.configJson['appNameList'][self.appNameCombox.currentIndex()]
+    jsonParams = '{"testKey": "testValue"}'
+    self.rtcVideo = sdk.RTCVideo(app_id=appInfo['appId'], event_handler=self, parameters=jsonParams)
+    self.setWindowTitle(f'{DemoTitle}, {sdk.SdkVersion}, version: {sdk.getVersion()}, APILog: bytesdklog/{sdk.APILogPath}')
+----boundary----
+
+name=destroyRtcVideo
+code=
+
+if self.rtcVideo:
+    self.vdm = None
+    self.rtcVideo.destroy()
+    self.rtcVideo = None
+    self.setWindowTitle(f'{DemoTitle}, {sdk.SdkVersion}')
+
+----boundary----
+
+name=enableSimulcastMode
+code=
+
+if self.rtcVideo:
+    self.rtcVideo.enableSimulcastMode(True)
+
+----boundary----
+
+name=takeLocalSnapshot
+code=
+
+def onTakeLocalSnapshotResult(self, event_time: int, event_name: str, event_json: str, event: dict) -> None:
+    videoFrame = sdk.IVideoFrame(event['video_frame'])
+    self.appendOutputEditText(f'onTakeLocalSnapshotResult IVideoFrame: {videoFrame.width()}x{videoFrame.height()},'
+                              f'format {videoFrame.pixelFormat()}, planes {videoFrame.numberOfPlanes()}, stride {videoFrame.getPlaneStride(0)}')
+    if videoFrame.pixelFormat() == sdk.VideoPixelFormat.ARGB:
+        try:
+            from PIL import Image
+            imagePath = 'localSnapshot.bmp'
+            arrayType = (ctypes.c_uint8 * (videoFrame.getPlaneStride(0) * videoFrame.height()))
+            frameBuf = arrayType.from_address(videoFrame.getPlaneData(0).value)
+            image = Image.frombytes('RGBA', (videoFrame.width(), videoFrame.height()), frameBuf, 'raw', 'BGRA')
+            image.save(imagePath)
+            self.appendOutputEditText(f'snapshot path: {imagePath}')
+            subprocess.Popen(imagePath, shell = True)
+        except Exception as ex:
+            self.appendOutputEditText(str(ex))
+    videoFrame.release()
+MainWindow.onTakeLocalSnapshotResult = onTakeLocalSnapshotResult
+self.RTCVideoEventHandler['onTakeLocalSnapshotResult'] = self.onTakeLocalSnapshotResult
+
+if self.rtcVideo:
+    streamIndex = sdk.StreamIndex.Main
+    #streamIndex = sdk.StreamIndex.Screen
+    self.rtcVideo.takeLocalSnapshot(streamIndex)
+
+----boundary----
+
+name=takeRemoteSnapshot
+code=
+
+def onTakeRemoteSnapshotResult(self, event_time: int, event_name: str, event_json: str, event: dict) -> None:
+    videoFrame = sdk.IVideoFrame(event['video_frame'])
+    self.appendOutputEditText(f'onTakeLocalSnapshotResult IVideoFrame: {videoFrame.width()}x{videoFrame.height()},'
+                              f'format {videoFrame.pixelFormat()}, planes {videoFrame.numberOfPlanes()}, stride {videoFrame.getPlaneStride(0)}')
+    if videoFrame.pixelFormat() == sdk.VideoPixelFormat.ARGB:
+        try:
+            from PIL import Image
+            imagePath = 'remoteSnapshot.bmp'
+            arrayType = (ctypes.c_uint8 * (videoFrame.getPlaneStride(0) * videoFrame.height()))
+            frameBuf = arrayType.from_address(videoFrame.getPlaneData(0).value)
+            image = Image.frombytes('RGBA', (videoFrame.width(), videoFrame.height()), frameBuf, 'raw', 'BGRA')
+            image.save(imagePath)
+            self.appendOutputEditText(f'snapshot path: {imagePath}')
+            subprocess.Popen(imagePath, shell = True)
+        except Exception as ex:
+            self.appendOutputEditText(str(ex))
+    videoFrame.release()
+MainWindow.onTakeRemoteSnapshotResult = onTakeRemoteSnapshotResult
+self.RTCVideoEventHandler['onTakeRemoteSnapshotResult'] = self.onTakeRemoteSnapshotResult
+
+if self.rtcVideo:
+    roomId = self.roomIdCombox.currentText().strip()
+    remoteUserId = 'RemoteUserIdToBeReplaced'
+    streamIndex = sdk.StreamIndex.Main
+    #streamIndex = sdk.StreamIndex.Screen
+    streamKey = sdk.RemoteStreamKey(roomId, remoteUserId, streamIndex)
+    self.rtcVideo.takeRemoteSnapshot(streamKey)
+
+----boundary----
+
+name=sendRoomMessage
+code=
+
+message = QApplication.clipboard().text()
+roomId = self.roomIdCombox.currentText().strip()
+self.rtcRooms[roomId].sendRoomMessage(message)
+
+----boundary----
+
+name=sendRoomBinaryMessage
+code=
+
+message = b'hello'
+roomId = self.roomIdCombox.currentText().strip()
+self.rtcRooms[roomId].sendRoomBinaryMessage(message)
+
+----boundary----
+
+name=sendUserMessage
+code=
+
+remoteUserId = 'RemoteUserIdToBeReplaced'
+message = QApplication.clipboard().text()
+config = sdk.MessageConfig.ReliableOrdered
+#config = sdk.MessageConfig.UnreliableOrdered
+#config = sdk.MessageConfig.UnreliableUnordered
+roomId = self.roomIdCombox.currentText().strip()
+self.rtcRooms[roomId].sendUserMessage(remoteUserId, message, config)
+
+----boundary----
+
+name=sendUserBinaryMessage
+code=
+
+remoteUserId = 'RemoteUserIdToBeReplaced'
+message = b'hello'
+config = sdk.MessageConfig.ReliableOrdered
+#config = sdk.MessageConfig.UnreliableOrdered
+#config = sdk.MessageConfig.UnreliableUnordered
+roomId = self.roomIdCombox.currentText().strip()
+self.rtcRooms[roomId].sendUserBinaryMessage(remoteUserId, message, config)
+
+----boundary----
+
+name=setRemoteVideoSuperResolution
+code=
+
+roomId = self.roomIdCombox.currentText().strip()
+remoteUserId = 'RemoteUserIdToBeReplaced'
+streamIndex = sdk.StreamIndex.Main
+mode = sdk.VideoSuperResolutionMode.On
+#mode = sdk.VideoSuperResolutionMode.Off
+streamKey = sdk.RemoteStreamKey(room_id=roomId, user_id=remoteUserId, stream_index=streamIndex)
+self.rtcVideo.setRemoteVideoSuperResolution(stream_key=streamKey, mode=mode)
+
+----boundary----
+
