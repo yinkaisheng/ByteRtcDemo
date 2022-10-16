@@ -43,6 +43,7 @@ class AsyncTask():
         self.debugPrint = True
 
     def delayCall(self, timeMs: int, func: Callable[[Any], None], *args, **kwargs) -> None:
+        '''delay call func(*args, **kwargs) after timeMs milliseconds'''
         timer = QTimer()
         timer.setSingleShot(True)
         timer.timeout.connect(self.onDelayCallTimer)

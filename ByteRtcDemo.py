@@ -252,8 +252,7 @@ class CodeDlg(QDialog):
         code = self.codeEdit.toPlainText().strip()
         if not code:
             return
-        self.apiDict[self.apiCombox.currentText()] = code
-        self.saveApiCode()
+        self.saveApiCode(self.apiCombox.currentText(), code)
 
     def onClickReload(self) -> None:
         self.loadApiCode()
@@ -262,7 +261,10 @@ class CodeDlg(QDialog):
         index = self.apiCombox.currentIndex()
         if index < 0:
             return
-        code = self.apiDict[self.apiCombox.currentText()]
+        name = self.apiCombox.currentText()
+        code = self.apiExDict.get(name, None)
+        if not code:
+            code = self.apiDict.get(name, '')
         remoteUserId = self.mainWindow.subscribeStreamUserCombox.currentText()
         if remoteUserId:
             code = code.replace('RemoteUserIdToBeReplaced', remoteUserId)
@@ -324,15 +326,23 @@ class CodeDlg(QDialog):
         self.apiExDict = self.loadApiToDict(f'{apiPath}Ex')
         self.apiDict.update(self.apiExDict)
         self.apiCombox.clear()
-        names = list(self.apiDict.keys())
+        names = set(self.apiDict.keys())
+        names.update(self.apiExDict.keys())
+        names = list(names)
         names.sort()
         self.apiCombox.addItems(names)
         if self.apiCombox.count() > curIndex:
             self.apiCombox.setCurrentIndex(curIndex)
 
-    def saveApiCode(self) -> None:
-        apiPath = os.path.join(sdk.ExeDir, sdk.ExeNameNoExt + '.code')
-        text = '\n'.join(f'name={name}\ncode=\n\n{content}\n{self.boundary}\n' for name, content in self.apiDict.items() if name not in self.apiExDict)
+    def saveApiCode(self, name: str, code: str) -> None:
+        if name in self.apiExDict:
+            apiDict = self.apiExDict
+            apiPath = os.path.join(sdk.ExeDir, sdk.ExeNameNoExt + '.codeEx')
+        else:
+            apiDict = self.apiDict
+            apiPath = os.path.join(sdk.ExeDir, sdk.ExeNameNoExt + '.code')
+        apiDict[name] = code
+        text = '\n'.join(f'name={name}\ncode=\n\n{content}\n{self.boundary}\n' for name, content in apiDict.items())
         util.writeTextFile(apiPath, text)
 
     def close(self) -> bool:
@@ -473,6 +483,8 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         self.scenerioCombox.currentIndexChanged.connect(self.onComboxScenarioSelectionChanged)
         for scenerioInfo in self.configJson["scenerios"]:
             self.scenerioCombox.addItem(scenerioInfo["name"])
+        if self.configJson["sceneriosIndex"] < self.scenerioCombox.count():
+            self.scenerioCombox.setCurrentIndex(self.configJson["sceneriosIndex"])
         hLayout.addWidget(self.scenerioCombox)
         runScenerioButton = QPushButton('run')
         runScenerioButton.setMinimumHeight(dpiSize(ButtonHeight))
@@ -740,6 +752,18 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         # ----
         hLayout = QHBoxLayout()
         vLayout.addLayout(hLayout)
+        leaveRoomBtn = QPushButton('leaveRoom')
+        leaveRoomBtn.setMinimumHeight(dpiSize(ButtonHeight))
+        leaveRoomBtn.clicked.connect(self.onClickLeaveRoomBtn)
+        hLayout.addWidget(leaveRoomBtn)
+        destroyRoomBtn = QPushButton('destroyRoom')
+        destroyRoomBtn.setMinimumHeight(dpiSize(ButtonHeight))
+        destroyRoomBtn.clicked.connect(self.onClickDestroyRoomBtn)
+        hLayout.addWidget(destroyRoomBtn)
+
+        # ----
+        hLayout = QHBoxLayout()
+        vLayout.addLayout(hLayout)
         publishStreamBtn = QPushButton('publishStream')
         publishStreamBtn.setMinimumHeight(dpiSize(ButtonHeight))
         publishStreamBtn.clicked.connect(self.onClickPublishStreamBtnBtn)
@@ -834,18 +858,6 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         self.subscribeScreenMediaStreamTypeCombox.setCurrentIndex(2)
         hLayout.addWidget(self.subscribeScreenMediaStreamTypeCombox)
         # hLayout.addStretch(1)
-
-        # ----
-        hLayout = QHBoxLayout()
-        vLayout.addLayout(hLayout)
-        leaveRoomBtn = QPushButton('leaveRoom')
-        leaveRoomBtn.setMinimumHeight(dpiSize(ButtonHeight))
-        leaveRoomBtn.clicked.connect(self.onClickLeaveRoomBtn)
-        hLayout.addWidget(leaveRoomBtn)
-        destroyRoomBtn = QPushButton('destroyRoom')
-        destroyRoomBtn.setMinimumHeight(dpiSize(ButtonHeight))
-        destroyRoomBtn.clicked.connect(self.onClickDestroyRoomBtn)
-        hLayout.addWidget(destroyRoomBtn)
 
         # ----
         vLayout.addStretch(1)

@@ -113,29 +113,6 @@ def APITime(func):
     return API
 
 
-def ElapsedTime(runTimes=1):
-    def inner(func):
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            #argstr = ','.join(str(arg) for arg in args)
-            #kwstr = ','.join('{}={}'.format(k, v) for k, v in kwargs.items())
-            #instr = ','.join(s for s in (argstr, kwstr) if s)
-            instr = ''
-            print(f'call {Fore.Cyan}{func.__name__}({instr})')
-            start = time.monotonic()
-            for i in range(runTimes):
-                ret = func(*args, **kwargs)
-            end = time.monotonic()
-            total = end - start
-            avg = total / runTimes
-            print(
-                f'{Fore.Cyan}{func.__name__}{Fore.Reset} run times {Fore.DarkGreen}{runTimes}{Fore.Reset}'
-                f', cost {Fore.DarkGreen}{total:.6f}{Fore.Reset}s, avg cost {Fore.DarkGreen}{avg:.6f}{Fore.Reset}s\n')
-            return ret
-        return wrapper
-    return inner
-
-
 class MyIntEnum(IntEnum):
     __str__ = IntEnum.__repr__
 

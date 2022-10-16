@@ -30,14 +30,16 @@ if self.rtcVideo:
 name=takeLocalSnapshot
 code=
 
+self.snapshotCount = 0
 def onTakeLocalSnapshotResult(self, event_time: int, event_name: str, event_json: str, event: dict) -> None:
+    self.snapshotCount += 1
     videoFrame = sdk.IVideoFrame(event['video_frame'])
     self.appendOutputEditText(f'onTakeLocalSnapshotResult IVideoFrame: {videoFrame.width()}x{videoFrame.height()},'
                               f'format {videoFrame.pixelFormat()}, planes {videoFrame.numberOfPlanes()}, stride {videoFrame.getPlaneStride(0)}')
     if videoFrame.pixelFormat() == sdk.VideoPixelFormat.ARGB:
         try:
             from PIL import Image
-            imagePath = 'localSnapshot.bmp'
+            imagePath = f'localSnapshot{self.snapshotCount}.bmp'
             arrayType = (ctypes.c_uint8 * (videoFrame.getPlaneStride(0) * videoFrame.height()))
             frameBuf = arrayType.from_address(videoFrame.getPlaneData(0).value)
             image = Image.frombytes('RGBA', (videoFrame.width(), videoFrame.height()), frameBuf, 'raw', 'BGRA')
@@ -47,27 +49,31 @@ def onTakeLocalSnapshotResult(self, event_time: int, event_name: str, event_json
         except Exception as ex:
             self.appendOutputEditText(str(ex))
     videoFrame.release()
+    if self.snapshotCount < 2:
+        self.delayCall(timeMs=1000, func=self.rtcVideo.takeLocalSnapshot, stream_index=self.snapShotStreamIndex)
 MainWindow.onTakeLocalSnapshotResult = onTakeLocalSnapshotResult
 self.RTCVideoEventHandler['onTakeLocalSnapshotResult'] = self.onTakeLocalSnapshotResult
 
 if self.rtcVideo:
-    streamIndex = sdk.StreamIndex.Main
-    #streamIndex = sdk.StreamIndex.Screen
-    self.rtcVideo.takeLocalSnapshot(streamIndex)
+    self.snapShotStreamIndex = sdk.StreamIndex.Main
+    #self.snapShotStreamIndex = sdk.StreamIndex.Screen
+    self.rtcVideo.takeLocalSnapshot(self.snapShotStreamIndex)
 
 ----boundary----
 
 name=takeRemoteSnapshot
 code=
 
+self.snapshotCount = 0
 def onTakeRemoteSnapshotResult(self, event_time: int, event_name: str, event_json: str, event: dict) -> None:
+    self.snapshotCount += 1
     videoFrame = sdk.IVideoFrame(event['video_frame'])
     self.appendOutputEditText(f'onTakeLocalSnapshotResult IVideoFrame: {videoFrame.width()}x{videoFrame.height()},'
                               f'format {videoFrame.pixelFormat()}, planes {videoFrame.numberOfPlanes()}, stride {videoFrame.getPlaneStride(0)}')
     if videoFrame.pixelFormat() == sdk.VideoPixelFormat.ARGB:
         try:
             from PIL import Image
-            imagePath = 'remoteSnapshot.bmp'
+            imagePath = f'remoteSnapshot{self.snapshotCount}.bmp'
             arrayType = (ctypes.c_uint8 * (videoFrame.getPlaneStride(0) * videoFrame.height()))
             frameBuf = arrayType.from_address(videoFrame.getPlaneData(0).value)
             image = Image.frombytes('RGBA', (videoFrame.width(), videoFrame.height()), frameBuf, 'raw', 'BGRA')
@@ -77,6 +83,8 @@ def onTakeRemoteSnapshotResult(self, event_time: int, event_name: str, event_jso
         except Exception as ex:
             self.appendOutputEditText(str(ex))
     videoFrame.release()
+    if self.snapshotCount < 2:
+        self.delayCall(timeMs=1000, func=self.rtcVideo.takeRemoteSnapshot, stream_key=self.snapshotStreamKey)
 MainWindow.onTakeRemoteSnapshotResult = onTakeRemoteSnapshotResult
 self.RTCVideoEventHandler['onTakeRemoteSnapshotResult'] = self.onTakeRemoteSnapshotResult
 
@@ -85,8 +93,8 @@ if self.rtcVideo:
     remoteUserId = 'RemoteUserIdToBeReplaced'
     streamIndex = sdk.StreamIndex.Main
     #streamIndex = sdk.StreamIndex.Screen
-    streamKey = sdk.RemoteStreamKey(roomId, remoteUserId, streamIndex)
-    self.rtcVideo.takeRemoteSnapshot(streamKey)
+    self.snapshotStreamKey = sdk.RemoteStreamKey(roomId, remoteUserId, streamIndex)
+    self.rtcVideo.takeRemoteSnapshot(self.snapshotStreamKey)
 
 ----boundary----
 
