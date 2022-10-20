@@ -65,10 +65,8 @@ def publishExternalVideoStreamTest(self):
     #index = sdk.StreamIndex.Screen #1
     self.rtcVideo.setLocalVideoCanvas(index, videoCanvas)
 
-    userId = self.userIdEdit.text().strip()
     self.rtcVideo.setVideoSourceType(stream_index=sdk.StreamIndex.Main, source_type=sdk.VideoSourceType.External)
-    self.pushTimer.start(1000 // self.videoEncoderConfig.frameRate - 2)
-    self.pushUserId = userId
+    self.startPushFrames()
     self.externalVideoSourceCheck.setChecked(True)
     self.appendOutputEditText(f'\n## check {self.externalVideoSourceCheck.isChecked()}')
 

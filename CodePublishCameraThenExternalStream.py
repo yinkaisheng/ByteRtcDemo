@@ -147,8 +147,7 @@ def onConnectionStateChanged(self, event_time: int, event_name: str, event_json:
                 return
             self.rtcVideo.stopVideoCapture()
             self.rtcVideo.setVideoSourceType(stream_index=sdk.StreamIndex.Main, source_type=sdk.VideoSourceType.External)
-            self.pushTimer.start(1000 // self.videoEncoderConfig.frameRate - 2)
-            self.pushUserId = userId
+            self.startPushFrames()
             self.externalVideoSourceCheck.setChecked(True)
 
         self.delayCall(6000, changeToExternalVideoSource)

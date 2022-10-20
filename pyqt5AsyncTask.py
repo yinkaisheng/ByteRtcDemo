@@ -61,7 +61,7 @@ class AsyncTask():
     def runTaskInThread(self, taskFunc: Callable[[pyqtSignal, int, Any], Any], args: Any, notifyFunc: Callable[[int, int, Any], None]) -> int:
         """
         run taskFunc with args in a new thread, notifyFunc will run in caller thread when the new thread emits a signal or exits
-        taskFunc: callable function(signal: pyqtSignal, taskId: int, args: Any)
+        taskFunc: callable function(signal: pyqtSignal, taskId: int, args: Any) -> Any
         notifyFunc: callable function(taskId: int, msgId: int, args: Any) or a function list,
                     if it is a list, only the first function has arguments(taskId: int, msgId: int, args: Any),
                     others have no arguments.
@@ -80,6 +80,11 @@ class AsyncTask():
             print('caller thread id {} spawns task id {}'.format(sysThreadId, self.taskId))
         thread.start()
         return self.taskId
+
+    def waitTask(self, taskId: int, msecs: int = 0xFFFFFFFF) -> bool:
+        if taskId in self.taskThreads:
+            return self.taskThreads[taskId].wait(msecs)
+        return False
 
     def taskIsRunning(self) -> bool:
         return bool(self.taskThreads)

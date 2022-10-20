@@ -74,8 +74,7 @@ def publishExternalVideoStreamTest(self, cameraIndex: int):
 
     userId = self.userIdEdit.text().strip()
     self.rtcVideo.setVideoSourceType(stream_index=sdk.StreamIndex.Main, source_type=sdk.VideoSourceType.External)
-    self.pushTimer.start(1000 // self.videoEncoderConfig.frameRate - 2)
-    self.pushUserId = userId
+    self.startPushFrames()
     self.externalVideoSourceCheck.setChecked(True)
 
 #给MainWindow动态添加方法
@@ -148,8 +147,7 @@ def onConnectionStateChanged(self, event_time: int, event_name: str, event_json:
         def changeToCameraSource():
             if not self.rtcVideo:
                 return
-            self.pushTimer.stop()
-            self.pushUserId = ''
+            self.stopPushFrames()
             self.rtcVideo.setVideoSourceType(stream_index=sdk.StreamIndex.Main, source_type=sdk.VideoSourceType.Internal)
             self.rtcVideo.startVideoCapture()
             self.externalVideoSourceCheck.setChecked(False)

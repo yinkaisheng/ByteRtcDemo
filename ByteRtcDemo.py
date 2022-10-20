@@ -17,7 +17,7 @@ import traceback
 import subprocess
 import collections
 from typing import Any, Callable, Dict, List, Tuple
-from PyQt5.QtCore import QItemSelection, QModelIndex, QObject, QRect, QRegExp, QSortFilterProxyModel, QThread, QTimer, Qt, pyqtSignal
+from PyQt5.QtCore import QItemSelection, QModelIndex, QPointF, QObject, QRect, QRegExp, QSortFilterProxyModel, QThread, QTimer, Qt, pyqtSignal
 from PyQt5.QtGui import QCloseEvent, QColor, QContextMenuEvent, QCursor, QFont, QIcon, QIntValidator, QKeyEvent, QMouseEvent, QPainter, QPixmap, QStandardItem, QStandardItemModel, QTextCursor, QTextOption
 from PyQt5.QtWidgets import QAbstractItemView, QAction, QApplication, QDesktopWidget, QDialog, QInputDialog, QMainWindow, QMenu, QMessageBox, QWidget, qApp
 from PyQt5.QtWidgets import QCheckBox, QComboBox, QLabel, QLineEdit, QListView, QPushButton, QRadioButton, QSlider, QPlainTextEdit, QTextEdit, QToolTip, QTreeView
@@ -410,13 +410,8 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         self.codeDlg = CodeDlg(self)
         self.selectSdkDlg.exec()
         self.videoEncoderConfig = sdk.VideoEncoderConfig(width=640, height=360, frameRate=15)
-        self.pushTimer = QTimer()
-        self.pushTimer.timeout.connect(self.onPushVideoFrameTimer)
+        self.pushTaskId = 0
         self.pushUserId = ''
-        self.pushPixelFormat = 'RGBA'
-        self.pushText = ''
-        self.painter = None
-        self.pixmap = None
         # after exec, console window is active, set MainWindow active in timer
         if sys.stdout:
             self.delayCall(timeMs=100, func=self.activateWindow)
@@ -1283,7 +1278,6 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         roomId = self.roomIdCombox.currentText().strip()
         if roomId in self.rtcRoomUsers:
             users = self.rtcRoomUsers[roomId]
-            self.appendOutputEditText(f'users: {users}')
             self.subscribeScreenUserCombox.clear()
             self.subscribeScreenUserCombox.addItems(users)
             self.subscribeStreamUserCombox.clear()
@@ -1295,11 +1289,9 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         if self.externalVideoSourceCheck.isChecked():
             self.rtcVideo.stopVideoCapture()    # don't need
             self.rtcVideo.setVideoSourceType(stream_index=sdk.StreamIndex.Main, source_type=sdk.VideoSourceType.External)
-            self.pushTimer.start(1000 // self.videoEncoderConfig.frameRate - 2)
-            self.pushUserId = self.userIdEdit.text()
+            self.startPushFrames()
         else:
-            self.pushTimer.stop()
-            self.pushUserId = ''
+            self.stopPushFrames()
             self.rtcVideo.setVideoSourceType(stream_index=sdk.StreamIndex.Main, source_type=sdk.VideoSourceType.Internal)
             self.rtcVideo.startVideoCapture()  # must need
         # self.onClickSetLocalVideoCanvasBtn()
@@ -1321,7 +1313,7 @@ class MainWindow(QMainWindow, astask.AsyncTask):
             self.onClickCloudProxyCheck()
 
     def onClickDestroyRtcVideoBtn(self) -> None:
-        self.pushTimer.stop()
+        self.stopPushFrames()
         self.externalVideoSourceCheck.setChecked(False)
         self.captureSourceList = []
         self.captureSourceListCombox.clear()
@@ -1572,64 +1564,126 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         if self.roomIdCombox.count() == 0:
             self.roomIdCombox.setCurrentText(roomId)
 
-    def onPushVideoFrameTimer(self) -> None:
-        if not self.rtcVideo:
+    def startPushFrames(self) -> None:
+        if self.pushTaskId > 0:
             return
+        self.stopEvent = threading.Event()
+        self.pushUserId = self.userIdEdit.text().strip()
+        self.pushTaskId = self.runTaskInThread(self.pushThreadFunc, (self.rtcVideo, self.videoEncoderConfig.width, self.videoEncoderConfig.height,
+                                                                     self.videoEncoderConfig.frameRate, self.pushUserId, self.stopEvent), self.onPushThreadExit)
+
+    def stopPushFrames(self) -> None:
+        if self.pushTaskId == 0:
+            return
+        self.stopEvent.set()
+        self.waitTask(self.pushTaskId)
+        self.pushTaskId = 0
+
+    def onPushThreadExit(self, taskId: int, msgId: int, args: Any) -> None:
+        pass
+
+    def pushThreadFunc(self, signal: pyqtSignal, taskId: int, args: Any) -> None:
+        rtcVideo, videoWidth, videoHeight, fps, pushUserId, stopEvent = args
+        pushText = 'hello'
+        pushPixelFormat = 'RGBA'
+        pushFrameCount = 0
         rawData = 0
         videoFormat = sdk.VideoPixelFormat.RGBA
-        videoWidth = 0
-        videoHeight = 0
+        waitTime = 1000 / fps / 1000 * 0.95
+        pixmap = QPixmap(videoWidth, videoHeight)
+        #pixmap.fill(QColor(204, 232, 207))
+        painter = QPainter()   # QPainter(pixmap)
 
-        pushVideoFile = False
-        if pushVideoFile:
-            pass
-        else:
-            if self.painter is None:
-                self.pixmap = QPixmap(self.videoEncoderConfig.width, self.videoEncoderConfig.height)
-                #self.pixmap.fill(QColor(204, 232, 207))
-                self.painter = QPainter()   # QPainter(self.pixmap)
-            self.painter.begin(self.pixmap)
-            font = self.painter.font()
+        circleCount = 4
+        radius = [videoHeight // random.randint(15, 25) for i in range(circleCount)]
+        circleX = [random.randint(radius[i], videoWidth - radius[i]) for i in range(circleCount)]
+        circleY = [random.randint(radius[i], videoHeight - radius[i]) for i in range(circleCount)]
+        rightX = [videoWidth - radius[i] for i in range(circleCount)]
+        rightY = [videoHeight - radius[i] for i in range(circleCount)]
+        xSpeed = [videoWidth // random.randint(4, 16) for i in range(circleCount)]
+        ySpeed = [videoHeight // random.randint(4, 16) for i in range(circleCount)]
+        prevDrawTick = time.monotonic()
+        cx = [0] * circleCount
+        cy = [0] * circleCount
+
+        now = time.monotonic()
+        pushStartTick = now
+
+        while 1:
+            stopEvent.wait(waitTime)
+            if stopEvent.is_set():
+                break
+            now = time.monotonic()
+            elapsed = now - prevDrawTick
+            prevDrawTick = now
+            painter.begin(pixmap)
+            font = painter.font()
             font.setFamilies(['微软雅黑', '黑体', 'Sans-Serif'])
             font.setBold(True)
-            font.setPointSize(int(font.pointSize() * self.pixmap.width() / 360))
-            self.painter.setFont(font)
-            self.painter.fillRect(0, 0, self.pixmap.width(), self.pixmap.height(), QColor(204, 232, 207))
+            font.setPointSize(int(font.pointSize() * videoWidth / 360))
+            painter.setFont(font)
+            painter.fillRect(0, 0, videoWidth, videoHeight, QColor(204, 232, 207))
+
+            cx = cx
+            cy = cy
+            for i in range(circleCount):
+                cx[i] = circleX[i] + elapsed * xSpeed[i]
+                if cx[i] > rightX[i]:
+                    cx[i] = rightX[i] - (cx[i] - rightX[i])
+                    xSpeed[i] = -xSpeed[i]
+                elif cx[i] < radius[i]:
+                    cx[i] = radius[i] + radius[i] - cx[i]
+                    xSpeed[i] = -xSpeed[i]
+                cy[i] = circleY[i] + elapsed * ySpeed[i]
+                if cy[i] > rightY[i]:
+                    cy[i] = rightY[i] - (cy[i] - rightY[i])
+                    ySpeed[i] = -ySpeed[i]
+                elif cy[i] < radius[i]:
+                    cy[i] = radius[i] + radius[i] - cy[i]
+                    ySpeed[i] = -ySpeed[i]
+                #print('circle', cx[i], cy[i], radius)
+                painter.drawEllipse(QPointF(circleX[i], circleY[i]), radius[i], radius[i])
+            circleX[:], circleY[:] = cx, cy
+
             x, y = 10, 10
-            fm = self.painter.fontMetrics()
-            text = f"""user id:{self.pushUserId} SrcSize: {self.pixmap.width()}*{self.pixmap.height()} {self.pushPixelFormat}
+            fm = painter.fontMetrics()
+            text = f"""user id:{pushUserId} SrcSize: {videoWidth}*{videoHeight} {pushPixelFormat}
 {datetime.datetime.now().isoformat(sep=' ', timespec='milliseconds')}"""
-            self.painter.drawText(x, y, self.pixmap.width() - x, self.pixmap.height() - y, Qt.TextWordWrap, text)
+            painter.drawText(x, y, videoWidth - x, videoHeight - y, Qt.TextWordWrap, text)
             y += (text.count('\n') + 1) * fm.height() + font.pointSize() // 2
             #print('font height, width, pointSize', fm.height(), fm.width(text[:text.find('\n')]), font.pointSize())
-            if self.pushText:
-                self.painter.drawText(x, y, self.pixmap.width() - x, self.pixmap.height() - y, Qt.TextWordWrap, self.pushText)
-            self.painter.end()
-            image = self.pixmap.toImage()
+            if pushText:
+                painter.drawText(x, y, videoWidth - x, videoHeight - y, Qt.TextWordWrap, pushText)
+            painter.end()
+            image = pixmap.toImage()
             # if not os.path.exists('agorapush.bmp'):
                 # image.save('agorapush.bmp')
             bits = image.constBits()    # type(bits) == PyQt5.sip.voidptr
             bits.setsize(image.byteCount())
             rawData = ctypes.c_void_p(int(bits))
-            videoWidth = self.pixmap.width()
-            videoHeight = self.pixmap.height()
 
-        if not rawData:
-            print('wrong arguments, can not pushVideoFrame')
-            return
-        frameBuilder = sdk.StructVideoFrameBuilder()
-        frameBuilder.frame_type = sdk.VideoFrameType.RawMemory
-        frameBuilder.pixel_fmt = videoFormat
-        frameBuilder.color_space = 0  # kColorSpaceUnknown
-        frameBuilder.data = (ctypes.c_void_p * 4)(rawData)
-        frameBuilder.linesize = (ctypes.c_int * 4)(videoWidth * 4)
-        frameBuilder.width = videoWidth
-        frameBuilder.height = videoHeight
-        videoFrame = sdk.buildVideoFrame(frameBuilder)
-        self.rtcVideo.pushExternalVideoFrame(videoFrame)
-        #pushExternalVideoFrame will release videoFrame, we can't release it again, so set its member to 0
-        videoFrame.frame = 0
-        videoFrame.pFrame = None
+            if not rawData:
+                print('wrong arguments, can not pushVideoFrame')
+                continue
+            frameBuilder = sdk.StructVideoFrameBuilder()
+            frameBuilder.frame_type = sdk.VideoFrameType.RawMemory
+            frameBuilder.pixel_fmt = videoFormat
+            frameBuilder.color_space = 0  # kColorSpaceUnknown
+            frameBuilder.data = (ctypes.c_void_p * 4)(rawData)
+            frameBuilder.linesize = (ctypes.c_int * 4)(videoWidth * 4)
+            frameBuilder.width = videoWidth
+            frameBuilder.height = videoHeight
+            frameBuilder.timestamp_us = int(time.time() * 100000)
+            videoFrame = sdk.buildVideoFrame(frameBuilder)
+            rtcVideo.pushExternalVideoFrame(videoFrame)
+            #C++ pushExternalVideoFrame will release videoFrame, we can't release it again, so set its member to 0
+            videoFrame.frame = 0
+            videoFrame.pFrame = None
+            pushFrameCount += 1
+            waitTime = (pushFrameCount + 1) / fps - (now - pushStartTick)
+            #print(f'{pushFrameCount} {fps} e {elapsed:.3f} w {waitTime:.3f}')
+            if waitTime < 0:
+                waitTime = 0
 
     def onRTCVideoEventHappen(self, event_time: int, event_name: str, event_json: str, event: dict) -> None:
         '''not run in UI thread'''
