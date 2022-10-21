@@ -21,28 +21,17 @@ def publishScreenStreamTest(self):
 
     self.rtcVideo.startAudioCapture()
 
-    #从界面获取采集宽高等配置
-    #videoCaptureConfig = sdk.VideoCaptureConfig()
-    #videoCaptureConfig.capturePreference = sdk.CapturePreference(int(self.capturePreferenceCombox.currentText()[-1]))
-    #videoCaptureConfig.width = int(self.widthEdit.text())
-    #videoCaptureConfig.height = int(self.heightEdit.text())
-    #videoCaptureConfig.frameRate = int(self.fpsEdit.text())
-    #使用自定义配置
-    #videoCaptureConfig.capturePreference = sdk.CapturePreference.Auto #0
-    #videoCaptureConfig.capturePreference = sdk.CapturePreference.Manual #1
-    #videoCaptureConfig.capturePreference = sdk.CapturePreference.AutoPerformance    #2
-    #videoCaptureConfig.width = 1280
-    #videoCaptureConfig.height = 720
-    #videoCaptureConfig.frameRate = 15
-    #self.rtcVideo.setVideoCaptureConfig(videoCaptureConfig)
-
     #从界面获取编码宽高等配置
-    videoEncoderConfig = sdk.VideoEncoderConfig()
+    if sdk.SdkVersion >= '3.48':
+        videoEncoderConfig = sdk.ScreenVideoEncoderConfig()
+        videoEncoderConfig.minBitrate = 0
+    else:
+        videoEncoderConfig = sdk.VideoEncoderConfig()
     videoEncoderConfig.width = int(self.widthEdit.text())
     videoEncoderConfig.height = int(self.heightEdit.text())
     videoEncoderConfig.frameRate = int(self.fpsEdit.text())
     videoEncoderConfig.maxBitrate = int(self.bitrateEdit.text())
-    videoEncoderConfig.encoderPreference = sdk.VideoEncodePreference.Framerate
+    videoEncoderConfig.encoderPreference = sdk.VideoEncodePreference.Quality
     #使用自定义配置
     #videoEncoderConfig.width = 1280
     #videoEncoderConfig.height = 720
@@ -52,7 +41,7 @@ def publishScreenStreamTest(self):
     #videoEncoderConfig.encoderPreference = sdk.VideoEncodePreference.Framerate #1
     #videoEncoderConfig.encoderPreference = sdk.VideoEncodePreference.Quality #2
     #videoEncoderConfig.encoderPreference = sdk.VideoEncodePreference.Balance #3
-    #self.rtcVideo.setVideoEncoderConfig(videoEncoderConfig)
+    self.rtcVideo.setScreenVideoEncoderConfig(videoEncoderConfig)
 
     viewText = self.localViewEdit.text().strip()
     viewHandle = int(viewText, base=16 if viewText.startswith('0x') or viewText.startswith('0X') else 10)
@@ -78,6 +67,7 @@ def publishScreenStreamTest(self):
         captureParam.highlight_config.enable_highlight = True
         #captureParam.highlight_config.enable_highlight = False
         captureParam.highlight_config.border_width = 4
+        #captureParam.region_rect = sourceList[0].region_rect
         captureParam.region_rect = sdk.Rectangle(x=0, y=0, width=1920, height=1080)
         self.rtcVideo.startScreenVideoCapture(sourceList[0], captureParam)
 
@@ -176,7 +166,7 @@ onUserUnpublishScreen
 def onUserJoinedExtra(self, event_time: int, event_name: str, event_json: str, event: dict) -> None:
     self.onUserJoined(event_time, event_name, event_json, event)
     #write your extra code
-    
+
 MainWindow.onUserJoinedExtra = onUserJoinedExtra
 self.RTCRoomEventHandler['onUserJoined'] = self.onUserJoinedExtra
 '''

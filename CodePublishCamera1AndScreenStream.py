@@ -85,6 +85,21 @@ def publishCameraAndScreenStreamTest(self, cameraIndex: int):
     index = sdk.StreamIndex.Screen #1
     self.rtcVideo.setLocalVideoCanvas(index, videoCanvas)
 
+    if sdk.SdkVersion >= '3.48':
+        videoEncoderConfig = sdk.ScreenVideoEncoderConfig()
+        videoEncoderConfig.minBitrate = 0
+    else:
+        videoEncoderConfig = sdk.VideoEncoderConfig()
+    videoEncoderConfig.width = 1280
+    videoEncoderConfig.height = 720
+    videoEncoderConfig.frameRate = 15
+    videoEncoderConfig.maxBitrate = -1
+    #videoEncoderConfig.encoderPreference = sdk.VideoEncodePreference.Disabled #0
+    #videoEncoderConfig.encoderPreference = sdk.VideoEncodePreference.Framerate #1
+    videoEncoderConfig.encoderPreference = sdk.VideoEncodePreference.Quality #2
+    #videoEncoderConfig.encoderPreference = sdk.VideoEncodePreference.Balance #3
+    self.rtcVideo.setScreenVideoEncoderConfig(videoEncoderConfig)
+
     sourceList = self.rtcVideo.getScreenCaptureSourceList()
     if sourceList:
         captureParam = sdk.ScreenCaptureParameters()
@@ -99,6 +114,7 @@ def publishCameraAndScreenStreamTest(self, cameraIndex: int):
         captureParam.highlight_config.enable_highlight = True
         #captureParam.highlight_config.enable_highlight = False
         captureParam.highlight_config.border_width = 4
+        #captureParam.region_rect = sourceList[0].region_rect
         captureParam.region_rect = sdk.Rectangle(x=0, y=0, width=1920, height=1080)
         self.rtcVideo.startScreenVideoCapture(sourceList[0], captureParam)
 
@@ -203,7 +219,7 @@ onUserUnpublishScreen
 def onUserJoinedExtra(self, event_time: int, event_name: str, event_json: str, event: dict) -> None:
     self.onUserJoined(event_time, event_name, event_json, event)
     #write your extra code
-    
+
 MainWindow.onUserJoinedExtra = onUserJoinedExtra
 self.RTCRoomEventHandler['onUserJoined'] = self.onUserJoinedExtra
 '''

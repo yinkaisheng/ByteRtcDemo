@@ -283,7 +283,9 @@ class CodeDlg(QDialog):
         #print(type(text), text)
         if button.text() == 'e&val':
             ret = self.mainWindow.evalCode(text)
-            sdk.log.info(f'eval(...) = {ret}\n')
+            output = f'eval(...)={ret}\n'
+            self.outputEdit.appendPlainText(output)
+            sdk.log.info(output)
         else:  # exec
             self.mainWindow.execCode(text)
             sdk.log.info(f'exec(...) done\n')

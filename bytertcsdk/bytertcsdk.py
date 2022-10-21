@@ -11,7 +11,7 @@ import threading
 import logging as log
 import ctypes.wintypes
 from enum import Enum, IntEnum
-from typing import (Any, Callable, Dict, List, Iterable, Tuple)
+from typing import (Any, Callable, Dict, List, Iterable, Tuple, Union)
 
 ExePath = os.path.abspath(sys.argv[0])
 ExeDir, ExeNameWithExt = os.path.split(ExePath)
@@ -790,6 +790,42 @@ class VideoEncoderConfig:
         sVideoEncoderConfig.maxBitrate = self.maxBitrate
         sVideoEncoderConfig.encoderPreference = self.encoderPreference
         return sVideoEncoderConfig
+
+
+class StructScreenVideoEncoderConfig(ctypes.Structure):
+    _fields_ = [("width", ctypes.c_int),
+                ("height", ctypes.c_int),
+                ("frameRate", ctypes.c_int),
+                ("maxBitrate", ctypes.c_int),
+                ("minBitrate", ctypes.c_int),
+                ("encoderPreference", ctypes.c_int),
+                ]
+
+
+class ScreenVideoEncoderConfig:
+    def __init__(self, width: int = 0, height: int = 0, frameRate: int = 0, maxBitrate: int = -1, minBitrate: int = 0, encoderPreference: VideoEncodePreference = VideoEncodePreference.Quality):
+        self.width = width
+        self.height = height
+        self.frameRate = frameRate
+        self.maxBitrate = maxBitrate
+        self.minBitrate = minBitrate
+        self.encoderPreference = encoderPreference
+
+    def __str__(self) -> str:
+        return f'{self.__class__.__name__}(width={self.width}, height={self.height}, frameRate={self.frameRate}, maxBitrate={self.maxBitrate}'    \
+               f', minBitrate={self.minBitrate}, encoderPreference={self.encoderPreference}, '
+
+    __repr__ = __str__
+
+    def toStruct(self) -> StructScreenVideoEncoderConfig:
+        sScreenVideoEncoderConfig = StructScreenVideoEncoderConfig()
+        sScreenVideoEncoderConfig.width = self.width
+        sScreenVideoEncoderConfig.height = self.height
+        sScreenVideoEncoderConfig.frameRate = self.frameRate
+        sScreenVideoEncoderConfig.maxBitrate = self.maxBitrate
+        sScreenVideoEncoderConfig.minBitrate = self.minBitrate
+        sScreenVideoEncoderConfig.encoderPreference = self.encoderPreference
+        return sScreenVideoEncoderConfig
 
 
 class StructVideoSolution(ctypes.Structure):
@@ -1594,21 +1630,21 @@ class RTCVideo:
         return ret
 
     @ APITime
-    def setVideoEncoderConfig(self, max_solution: VideoEncoderConfig) -> int:
+    def setVideoEncoderConfig(self, encoder_config: VideoEncoderConfig) -> int:
         if not self.pIRTCVideo:
             return
-        ret = self.dll.byte_RTCVideo_setVideoEncoderConfig(self.pIRTCVideo, ctypes.byref(max_solution.toStruct()))
+        ret = self.dll.byte_RTCVideo_setVideoEncoderConfig(self.pIRTCVideo, ctypes.byref(encoder_config.toStruct()))
         return ret
 
     @ APITime
-    def setVideoEncoderConfigList(self, channel_solutions: List[VideoEncoderConfig]) -> int:
+    def setVideoEncoderConfigList(self, encoder_configs: List[VideoEncoderConfig]) -> int:
         if not self.pIRTCVideo:
             return
-        arrayType = StructVideoEncoderConfig * len(channel_solutions)
+        arrayType = StructVideoEncoderConfig * len(encoder_configs)
         cConfigs = arrayType()
-        for i, config in enumerate(channel_solutions):
+        for i, config in enumerate(encoder_configs):
             cConfigs[i] = config.toStruct()
-        ret = self.dll.byte_RTCVideo_setVideoEncoderConfigList(self.pIRTCVideo, cConfigs, len(channel_solutions))
+        ret = self.dll.byte_RTCVideo_setVideoEncoderConfigList(self.pIRTCVideo, cConfigs, len(encoder_configs))
         return ret
 
     @ APITime
@@ -1620,6 +1656,17 @@ class RTCVideo:
         for i, solu in enumerate(solutions):
             cSolutions[i] = solu.toStruct()
         ret = self.dll.byte_RTCVideo_setVideoEncoderConfigSolutions(self.pIRTCVideo, index, cSolutions, len(solutions))
+        return ret
+
+    @ APITime
+    def setScreenVideoEncoderConfig(self, encoder_config: Union[VideoEncoderConfig, ScreenVideoEncoderConfig]) -> int:
+        if not self.pIRTCVideo:
+            return
+        if SdkVersion >= '3.48':
+            assert isinstance(encoder_config, ScreenVideoEncoderConfig)
+        else:
+            assert isinstance(encoder_config, VideoEncoderConfig)
+        ret = self.dll.byte_RTCVideo_setScreenVideoEncoderConfig(self.pIRTCVideo, ctypes.byref(encoder_config.toStruct()))
         return ret
 
     @APITime
