@@ -155,3 +155,22 @@ self.rtcVideo.setRemoteVideoSuperResolution(stream_key=streamKey, mode=mode)
 
 ----boundary----
 
+name=OutOfMemoryTest
+code=
+
+try:
+    self.mem
+except:
+    self.mem = []
+mb = 3
+size = mb * 1024 * 1024
+while 1:
+    try:
+        mem = (ctypes.c_uint8 * size)()
+        self.mem.append(mem)
+    except:
+        break
+self.appendOutputEditText(f'self.mem len={len(self.mem)}, alloc {mb * len(self.mem)} MB memory')
+self.delayCall(timeMs=10000, func=self.mem.clear)
+
+----boundary----

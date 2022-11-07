@@ -100,7 +100,8 @@ class SelectSdkDlg(QDialog):
         if not os.path.exists(sdkBinPath):
             print(f'---- {sdkBinPath} does not exist')
             # load dll in develop code path
-            binDirs = util.getFileText(os.path.join(sdk.ExeDir, sdk.ExeNameNoExt + '.dllpath')).splitlines()
+            binDirs = util.getFileText(os.path.join(sdk.SdkBinDirFull, '.dllpath')).splitlines()
+            binDirs.extend(util.getFileText(os.path.join(sdk.ExeDir, sdk.ExeNameNoExt + '.dllpath')).splitlines())
             for binDir in binDirs:
                 binPath = os.path.join(binDir, sdk.SdkDllName)
                 if os.path.exists(binPath):
@@ -1234,7 +1235,6 @@ class MainWindow(QMainWindow, astask.AsyncTask):
 
     def closeEvent(self, event: QCloseEvent) -> None:
         print('closeEvent')
-        self.painter = None
         self.onClickDestroyRtcVideoBtn()
         self.tipDlg.close()
         self.codeDlg.close()
@@ -1366,8 +1366,7 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         videoEncoderConfig.encoderPreference = sdk.VideoEncodePreference.Framerate
         self.videoEncoderConfig = videoEncoderConfig
         self.rtcVideo.setVideoEncoderConfig(videoEncoderConfig)
-        if self.painter and (self.pixmap.width() != videoEncoderConfig.width or self.pixmap.height() != videoEncoderConfig.height):
-            self.painter = None
+        #todo notify pushvideoframe thread to changed video size
 
     def onClickSetLocalVideoCanvasBtn(self) -> None:
         if not self.rtcVideo:
