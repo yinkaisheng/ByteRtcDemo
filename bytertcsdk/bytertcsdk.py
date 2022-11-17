@@ -138,6 +138,8 @@ class _DllClient:
             log.error(ex)
         if load:
             self.dll.byte_createRTCVideoEventHandler.restype = ctypes.c_void_p
+            self.dll.byte_createRTCRoomEventHandler.restype = ctypes.c_void_p
+            self.dll.byte_createVideoFrameObserver.restype = ctypes.c_void_p
             self.dll.byte_createRTCVideo.restype = ctypes.c_void_p
             self.dll.byte_getErrorDescription.restype = ctypes.c_char_p
             self.dll.byte_getSDKVersion.restype = ctypes.c_char_p
@@ -194,6 +196,14 @@ def getVersion() -> str:
 def getErrorDescription(error: int) -> str:
     errorDesc = _DllClient.instance().dll.byte_getErrorDescription(error)
     return errorDesc.decode()
+
+
+class SaveFrameType(MyIntEnum):
+    LocalVideoFrame = 0
+    LocalScreenFrame = 1
+    RemoteVideoFrame = 2
+    RemoteScreenFrame = 3
+    MergeFrame = 4
 
 
 class VideoEncodePreference(MyIntEnum):
@@ -746,7 +756,7 @@ class VideoCaptureConfig:
         self.frameRate = frameRate
 
     def __str__(self) -> str:
-        return f'{self.__class__.__name__}(capturePreference={self.capturePreference}, width={self.width}, height={self.height}, frameRate={self.frameRate}'
+        return f'{self.__class__.__name__}(capturePreference={self.capturePreference}, width={self.width}, height={self.height}, frameRate={self.frameRate})'
 
     __repr__ = __str__
 
@@ -778,7 +788,7 @@ class VideoEncoderConfig:
 
     def __str__(self) -> str:
         return f'{self.__class__.__name__}(width={self.width}, height={self.height}, frameRate={self.frameRate}, maxBitrate={self.maxBitrate}'    \
-               f', encoderPreference={self.encoderPreference}, '
+               f', encoderPreference={self.encoderPreference})'
 
     __repr__ = __str__
 
@@ -813,7 +823,7 @@ class ScreenVideoEncoderConfig:
 
     def __str__(self) -> str:
         return f'{self.__class__.__name__}(width={self.width}, height={self.height}, frameRate={self.frameRate}, maxBitrate={self.maxBitrate}'    \
-               f', minBitrate={self.minBitrate}, encoderPreference={self.encoderPreference}, '
+               f', minBitrate={self.minBitrate}, encoderPreference={self.encoderPreference})'
 
     __repr__ = __str__
 
@@ -1543,6 +1553,8 @@ class RTCVideo:
         self.dll.byte_RTCVideoEventHandler_setCallback(self.pIRTCVideoEventHandler, self.videoEventCFuncCallback)
         self.IRTCVideo = self.dll.byte_createRTCVideo(app_id.encode(), self.pIRTCVideoEventHandler, parameters.encode())
         self.pIRTCVideo = ctypes.c_void_p(self.IRTCVideo)
+        self.videoFrameObserver = self.dll.byte_createVideoFrameObserver()
+        self.pVideoFrameObserver = ctypes.c_void_p(self.videoFrameObserver)
         self.version = getVersion()
         lineLen = 60
         log.info('\n\n{0}\n|{1:^{middleLen}}|\n{0}\n'.format(
@@ -1578,6 +1590,10 @@ class RTCVideo:
             self.dll.byte_deleteRTCVideoEventHandler(self.pIRTCVideoEventHandler)
             self.IRTCVideoEventHandler = 0
             self.pIRTCVideoEventHandler = None
+        if self.videoFrameObserver:
+            self.dll.byte_deleteVideoFrameObserver(self.pVideoFrameObserver)
+            self.videoFrameObserver = 0
+            self.pVideoFrameObserver = None
 
     @ APITime
     def startCloudProxy(self, proxies: List[Tuple[str, int]]) -> None:
@@ -1592,6 +1608,17 @@ class RTCVideo:
         if not self.pIRTCVideo:
             return
         self.dll.byte_RTCVideo_stopCloudProxy(self.pIRTCVideo)
+
+    @ APITime
+    def registerVideoFrameObserver(self, videoFrameObserver: ctypes.c_void_p) -> None:
+        if not self.pIRTCVideo:
+            return
+        self.dll.byte_RTCVideo_registerVideoFrameObserver(self.pIRTCVideo, videoFrameObserver)
+
+    def saveVideoFrameObserverFrame(self, frameType: SaveFrameType, save: bool, fileCount: int, frameCount: int) -> None:
+        if not self.pIRTCVideo:
+            return
+        self.dll.byte_VideoFrameObserver_saveFrame(self.pVideoFrameObserver, frameType, int(save), fileCount, frameCount)
 
     @ APITime
     def setLocalVideoCanvas(self, index: StreamIndex, canvas: VideoCanvas) -> int:

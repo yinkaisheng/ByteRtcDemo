@@ -107,7 +107,7 @@ class SelectSdkDlg(QDialog):
                 if os.path.exists(binPath):
                     global DevelopDllDir
                     DevelopDllDir = binDir
-                    sdk.log.info(f'---- user the dll dir: {binDir}')
+                    sdk.log.info(f'---- {binPath} exists, use this dll')
                     os.environ["PATH"] = binDir + os.pathsep + os.environ["PATH"]
                     if sdk.isPy38OrHigher():
                         os.add_dll_directory(binDir)
@@ -1595,7 +1595,7 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         #pixmap.fill(QColor(204, 232, 207))
         painter = QPainter()   # QPainter(pixmap)
 
-        circleCount = 4
+        circleCount = 1
         radius = [videoHeight // random.randint(15, 25) for i in range(circleCount)]
         circleX = [random.randint(radius[i], videoWidth - radius[i]) for i in range(circleCount)]
         circleY = [random.randint(radius[i], videoHeight - radius[i]) for i in range(circleCount)]

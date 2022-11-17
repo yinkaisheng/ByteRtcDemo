@@ -27,6 +27,19 @@ if self.rtcVideo:
 
 ----boundary----
 
+name=VideoDeviceManager
+code=
+
+self.vdm = self.rtcVideo.getVideoDeviceManager()
+if self.vdm:
+    deviceInfoList = self.vdm.getDeviceInfoList()
+    cameraIndex = 0
+    if cameraIndex < len(deviceInfoList):
+        self.vdm.setVideoCaptureDevice(deviceInfoList[cameraIndex].device_id)
+        self.vdm.getVideoCaptureDevice()
+
+----boundary----
+
 name=takeLocalSnapshot
 code=
 

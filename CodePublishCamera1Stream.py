@@ -72,6 +72,8 @@ def publishCameraStreamTest(self, cameraIndex: int):
         if cameraIndex < len(deviceInfoList):
             self.vdm.setVideoCaptureDevice(deviceInfoList[cameraIndex].device_id)
 
+    self.rtcVideo.registerVideoFrameObserver(self.rtcVideo.pVideoFrameObserver)
+    #self.rtcVideo.saveVideoFrameObserverFrame(sdk.SaveFrameType.LocalVideoFrame, True, fileCount=3, frameCount=100)
     self.rtcVideo.startVideoCapture()
 
 
