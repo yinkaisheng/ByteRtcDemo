@@ -110,7 +110,7 @@ def onConnectionStateChanged(self, event_time: int, event_name: str, event_json:
             if userTokens:
                 token = userTokens.get(userId, '')
         #token = 'TheToken'
-        jsonExtra = '{"rtctest":"hello byte rtc"}'
+        jsonExtra = '{"nickName":"yks"}'
         userInfo = sdk.UserInfo(uid=userId, extra_info=jsonExtra)
         rtcRoom.joinRoom(token, user_info=userInfo, room_config=roomConfig)
 
