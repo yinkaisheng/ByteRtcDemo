@@ -51,7 +51,7 @@ def onConnectionStateChanged(self, event_time: int, event_name: str, event_json:
             if userTokens:
                 token = userTokens.get(userId, '')
         #token = 'TheToken'
-        jsonExtra = '{"rtctest":"hello byte rtc"}'
+        jsonExtra = '{"nickName":"yks"}'
         userInfo = sdk.UserInfo(uid=userId, extra_info=jsonExtra)
         roomConfig = sdk.RTCRoomConfig()
         roomConfig.room_profile_type = sdk.RoomProfileType.Communication        #0

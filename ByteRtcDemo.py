@@ -1471,7 +1471,7 @@ class MainWindow(QMainWindow, astask.AsyncTask):
             userTokens = self.configJson['appNameList'][self.configJson['appNameIndex']].get(roomId, None)
             if userTokens:
                 token = userTokens.get(userId, '')
-        userInfo = sdk.UserInfo(uid=userId, extra_info='{"nickName":"MyName"}')
+        userInfo = sdk.UserInfo(uid=userId, extra_info='{"nickName":"yks"}')
         roomConfig = sdk.RTCRoomConfig(room_profile_type=sdk.RoomProfileType.LiveBroadcasting)
         roomConfig.is_auto_publish = self.autoPublishCheck.isChecked()
         roomConfig.is_auto_subscribe_audio = self.autoSubscribeAudioCheck.isChecked()
