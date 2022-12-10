@@ -18,7 +18,7 @@ import subprocess
 import collections
 from typing import Any, Callable, Dict, List, Tuple
 from PyQt5.QtCore import QItemSelection, QModelIndex, QPointF, QObject, QRect, QRegExp, QSortFilterProxyModel, QThread, QTimer, Qt, pyqtSignal
-from PyQt5.QtGui import QCloseEvent, QColor, QCursor, QFont, QIcon, QImage, QIntValidator, QPainter, QPixmap
+from PyQt5.QtGui import QCloseEvent, QColor, QCursor, QFont, QIcon, QImage, QIntValidator, QPainter, QPen, QPixmap
 from PyQt5.QtGui import QContextMenuEvent, QKeyEvent, QMouseEvent, QStandardItem, QStandardItemModel, QTextCursor, QTextOption
 from PyQt5.QtWidgets import QAbstractItemView, QAction, QApplication, QDesktopWidget, QDialog, QInputDialog, QMainWindow, QMenu, QMessageBox, QWidget
 from PyQt5.QtWidgets import QCheckBox, QComboBox, QLabel, QLineEdit, QListView, QPushButton, QRadioButton, QSlider, QPlainTextEdit, QTextEdit, QToolTip, QTreeView
@@ -1629,6 +1629,8 @@ class MainWindow(QMainWindow, astask.AsyncTask):
             font.setPointSize(int(font.pointSize() * videoWidth / 360))
             painter.setFont(font)
             painter.fillRect(0, 0, videoWidth, videoHeight, QColor(204, 232, 207))
+            qpen = QPen(QColor(255, 0, 0), 4, Qt.SolidLine)
+            painter.setPen(qpen)
 
             cx = cx
             cy = cy
@@ -1650,6 +1652,8 @@ class MainWindow(QMainWindow, astask.AsyncTask):
                 #print('circle', cx[i], cy[i], radius)
                 painter.drawEllipse(QPointF(circleX[i], circleY[i]), radius[i], radius[i])
             circleX[:], circleY[:] = cx, cy
+            qpen = QPen(QColor(0, 0, 0), 1, Qt.SolidLine)
+            painter.setPen(qpen)
 
             x, y = 10, 10
             fm = painter.fontMetrics()
