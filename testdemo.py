@@ -80,8 +80,8 @@ def main(isCameraCapture: bool = True):
     rtcVideo.startAudioCapture()
     vdm = rtcVideo.getVideoDeviceManager()
     if vdm:
-        vdm.getDeviceList()
-        vdm.getDeviceInfoList()
+        vdm.enumerateVideoCaptureDevices()
+        vdm.enumerateVideoCaptureDevices2()
 
     localCanvas = sdk.VideoCanvas(view=getViewHandle(), render_mode=sdk.RenderMode.Hidden, background_color=0x000000)
     videoSolu = sdk.VideoSolution()

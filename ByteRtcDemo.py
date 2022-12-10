@@ -18,10 +18,11 @@ import subprocess
 import collections
 from typing import Any, Callable, Dict, List, Tuple
 from PyQt5.QtCore import QItemSelection, QModelIndex, QPointF, QObject, QRect, QRegExp, QSortFilterProxyModel, QThread, QTimer, Qt, pyqtSignal
-from PyQt5.QtGui import QCloseEvent, QColor, QContextMenuEvent, QCursor, QFont, QIcon, QIntValidator, QKeyEvent, QMouseEvent, QPainter, QPixmap, QStandardItem, QStandardItemModel, QTextCursor, QTextOption
-from PyQt5.QtWidgets import QAbstractItemView, QAction, QApplication, QDesktopWidget, QDialog, QInputDialog, QMainWindow, QMenu, QMessageBox, QWidget, qApp
+from PyQt5.QtGui import QCloseEvent, QColor, QCursor, QFont, QIcon, QImage, QIntValidator, QPainter, QPixmap
+from PyQt5.QtGui import QContextMenuEvent, QKeyEvent, QMouseEvent, QStandardItem, QStandardItemModel, QTextCursor, QTextOption
+from PyQt5.QtWidgets import QAbstractItemView, QAction, QApplication, QDesktopWidget, QDialog, QInputDialog, QMainWindow, QMenu, QMessageBox, QWidget
 from PyQt5.QtWidgets import QCheckBox, QComboBox, QLabel, QLineEdit, QListView, QPushButton, QRadioButton, QSlider, QPlainTextEdit, QTextEdit, QToolTip, QTreeView
-from PyQt5.QtWidgets import QGridLayout, QHBoxLayout, QLayout, QSplitter, QVBoxLayout
+from PyQt5.QtWidgets import qApp, QGridLayout, QHBoxLayout, QLayout, QSplitter, QVBoxLayout, QSystemTrayIcon
 from QCodeEditor import QCodeEditor
 import pyqt5AsyncTask as astask
 import util
@@ -121,7 +122,7 @@ class SelectSdkDlg(QDialog):
 
 
 class TipDlg(QDialog):
-    def __init__(self, parent: QObject = None, tipTime=6):
+    def __init__(self, parent: QObject = None, tipSeconds=6):
         super(TipDlg, self).__init__(parent)
         self.setWindowFlags(Qt.Tool | Qt.FramelessWindowHint)  # Qt.Tool makes no display on taskbar
         self.resize(dpiSize(200), dpiSize(100))
@@ -137,7 +138,7 @@ class TipDlg(QDialog):
         self.timer = QTimer()
         self.timer.setSingleShot(True)
         self.timer.timeout.connect(self.close)
-        self.tipTime = tipTime * 1000
+        self.tipSeconds = tipSeconds * 1000
 
     def mousePressEvent(self, event: QMouseEvent) -> None:
         if event.button() == Qt.LeftButton:
@@ -151,7 +152,7 @@ class TipDlg(QDialog):
 
     def showTip(self, msg: str = '') -> None:
         self.timer.stop()
-        self.timer.start(self.tipTime)
+        self.timer.start(self.tipSeconds)
         if msg:
             if msg != self.tipLabel.text():
                 self.tipLabel.resize(dpiSize(200), dpiSize(100))
@@ -420,6 +421,8 @@ class MainWindow(QMainWindow, astask.AsyncTask):
             self.delayCall(timeMs=100, func=self.activateWindow)
 
         self.rtcVideo = None  # sdk.RTCVideo(app_id='', event_handler=None, parameters='')
+        self.vdm = None
+        self.videoEffect = None
         #self.rtcRoom = None
         self.rtcRooms = {}
         self.rtcRoomEventHandlers = {}
@@ -1232,6 +1235,7 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         key = event.key()
         if key == Qt.Key_Escape:
             event.accept()
+            pass
 
     def closeEvent(self, event: QCloseEvent) -> None:
         print('closeEvent')
@@ -1242,7 +1246,7 @@ class MainWindow(QMainWindow, astask.AsyncTask):
 
     def onSelectSdkCallback(self, sdkBinDir: str) -> None:
         self.selectSdkDlg.close()
-        sdk.chooseSdkBinDir(sdkBinDir)
+        sdk.selectSdkBinDir(sdkBinDir)
         self.setWindowTitle(f'{DemoTitle}, {sdk.SdkVersion}')
 
     def onComboxScenarioSelectionChanged(self, currentIndex: int) -> None:
@@ -1324,6 +1328,7 @@ class MainWindow(QMainWindow, astask.AsyncTask):
             self.onClickDestroyRoomBtn()
         if self.rtcVideo:
             self.vdm = None
+            self.videoEffect = None
             self.rtcVideo.destroy()
             self.rtcVideo = None
             self.setWindowTitle(f'{DemoTitle}, {sdk.SdkVersion}')
@@ -1386,7 +1391,7 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         self.vdm = self.rtcVideo.getVideoDeviceManager()
         if not self.vdm:
             return
-        deviceList = self.vdm.getDeviceInfoList()
+        deviceList = self.vdm.enumerateVideoCaptureDevices2()
         self.vdmActions = []
         menu = QMenu(self)
         for deviceInfo in deviceList:
@@ -1466,7 +1471,7 @@ class MainWindow(QMainWindow, astask.AsyncTask):
             userTokens = self.configJson['appNameList'][self.configJson['appNameIndex']].get(roomId, None)
             if userTokens:
                 token = userTokens.get(userId, '')
-        userInfo = sdk.UserInfo(uid=userId, extra_info='{"rtctest":"hello byte rtc"}')
+        userInfo = sdk.UserInfo(uid=userId, extra_info='{"nickName":"MyName"}')
         roomConfig = sdk.RTCRoomConfig(room_profile_type=sdk.RoomProfileType.LiveBroadcasting)
         roomConfig.is_auto_publish = self.autoPublishCheck.isChecked()
         roomConfig.is_auto_subscribe_audio = self.autoSubscribeAudioCheck.isChecked()
@@ -1859,7 +1864,9 @@ class MainWindow(QMainWindow, astask.AsyncTask):
             self.uid2ViewIndex[userId][sdk.StreamIndex.Main] = freeViewIndex
         else:
             self.uid2ViewIndex[userId] = {sdk.StreamIndex.Main: freeViewIndex}
-        remoteStreamKey = sdk.RemoteStreamKey(room_id=self.currentEventRoomId, user_id=userId, stream_index=sdk.StreamIndex.Main)
+        roomId = self.currentEventRoomId
+        #roomId = ''
+        remoteStreamKey = sdk.RemoteStreamKey(room_id=roomId, user_id=userId, stream_index=sdk.StreamIndex.Main)
         videoCanvas = sdk.VideoCanvas(view=freeView, render_mode=sdk.RenderMode.Fit, background_color=0x000000)
         if sdk.SdkVersion >= '3.47':
             self.rtcVideo.setRemoteVideoCanvas(stream_key=remoteStreamKey, canvas=videoCanvas)

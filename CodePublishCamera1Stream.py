@@ -19,6 +19,7 @@ def publishCameraStreamTest(self, cameraIndex: int):
         self.onClickCloudProxyCheck()
     #self.rtcVideo.startCloudProxy([('10.37.144.157', 6779)])
 
+    self.rtcVideo.enableSimulcastMode(True)
     self.rtcVideo.startAudioCapture()
 
     #从界面获取采集宽高等配置
@@ -53,7 +54,16 @@ def publishCameraStreamTest(self, cameraIndex: int):
     #videoEncoderConfig.encoderPreference = sdk.VideoEncodePreference.Quality #2
     #videoEncoderConfig.encoderPreference = sdk.VideoEncodePreference.Balance #3
     self.videoEncoderConfig = videoEncoderConfig
+
+    videoEncoderConfig1 = sdk.VideoEncoderConfig()
+    videoEncoderConfig1.width = videoEncoderConfig.width // 2
+    videoEncoderConfig1.height = videoEncoderConfig.height // 2
+    videoEncoderConfig1.frameRate = 15
+    videoEncoderConfig1.maxBitrate = -1
+    videoEncoderConfig1.encoderPreference = sdk.VideoEncodePreference.Framerate
+
     self.rtcVideo.setVideoEncoderConfig(videoEncoderConfig)
+    #self.rtcVideo.setVideoEncoderConfig([videoEncoderConfig, videoEncoderConfig1])
 
     viewText = self.localViewEdit.text().strip()
     viewHandle = int(viewText, base=16 if viewText.startswith('0x') or viewText.startswith('0X') else 10)
@@ -68,7 +78,7 @@ def publishCameraStreamTest(self, cameraIndex: int):
     #选择摄像头
     self.vdm = self.rtcVideo.getVideoDeviceManager()
     if self.vdm:
-        deviceInfoList = self.vdm.getDeviceInfoList()
+        deviceInfoList = self.vdm.enumerateVideoCaptureDevices2()
         if cameraIndex < len(deviceInfoList):
             self.vdm.setVideoCaptureDevice(deviceInfoList[cameraIndex].device_id)
 

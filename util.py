@@ -125,7 +125,7 @@ def jsonFromFile(path: str, encoding: str = 'utf-8') -> Dict:
 
 def jsonToFile(jsonObj: Dict, path: str):
     jsonStr = json.dumps(jsonObj, indent=4, ensure_ascii=False, sort_keys=False)
-    writeTextFile(jsonStr, path, encoding='utf-8')
+    writeTextFile(path, jsonStr, encoding='utf-8')
 
 
 TreeNode = Any

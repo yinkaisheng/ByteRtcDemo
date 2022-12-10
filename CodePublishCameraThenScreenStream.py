@@ -19,6 +19,7 @@ def publishExternalVideoStreamTest(self, cameraIndex: int):
         self.onClickCloudProxyCheck()
     #self.rtcVideo.startCloudProxy([('10.37.144.157', 6779)])
 
+    self.rtcVideo.enableSimulcastMode(True)
     self.rtcVideo.startAudioCapture()
 
     #从界面获取采集宽高等配置
@@ -68,7 +69,7 @@ def publishExternalVideoStreamTest(self, cameraIndex: int):
     #选择摄像头
     self.vdm = self.rtcVideo.getVideoDeviceManager()
     if self.vdm:
-        deviceInfoList = self.vdm.getDeviceInfoList()
+        deviceInfoList = self.vdm.enumerateVideoCaptureDevices2()
         if cameraIndex < len(deviceInfoList):
             self.vdm.setVideoCaptureDevice(deviceInfoList[cameraIndex].device_id)
 

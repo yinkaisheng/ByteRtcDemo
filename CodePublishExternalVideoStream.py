@@ -19,6 +19,7 @@ def publishExternalVideoStreamTest(self):
         self.onClickCloudProxyCheck()
     #self.rtcVideo.startCloudProxy([('10.37.144.157', 6779)])
 
+    self.rtcVideo.enableSimulcastMode(True)
     self.rtcVideo.startAudioCapture()
 
     #从界面获取采集宽高等配置

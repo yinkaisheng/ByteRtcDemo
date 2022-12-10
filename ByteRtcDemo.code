@@ -1,3 +1,24 @@
+name=RepeatTask
+code=
+
+self.runTask = 1
+
+def task1(self):
+    if not self.runTask: return
+    self.rtcVideo.stopVideoCapture()
+    self.delayCall(2000, self.task2)
+MainWindow.task1 = task1
+
+def task2(self):
+    if not self.runTask: return
+    self.rtcVideo.startVideoCapture()
+    self.delayCall(10000, self.task1)
+MainWindow.task2 = task2
+
+self.delayCall(10000, self.task1)
+
+----boundary----
+
 name=createRTCVideo
 code=
 
@@ -6,6 +27,7 @@ if self.rtcVideo is None:
     jsonParams = '{"testKey": "testValue"}'
     self.rtcVideo = sdk.RTCVideo(app_id=appInfo['appId'], event_handler=self, parameters=jsonParams)
     self.setWindowTitle(f'{DemoTitle}, {sdk.SdkVersion}, version: {sdk.getVersion()}, APILog: bytesdklog/{sdk.APILogPath}')
+
 ----boundary----
 
 name=destroyRtcVideo
@@ -19,20 +41,74 @@ if self.rtcVideo:
 
 ----boundary----
 
-name=enableSimulcastMode
+name=RtcVideo.enableSimulcastMode
 code=
 
-if self.rtcVideo:
-    self.rtcVideo.enableSimulcastMode(True)
+self.rtcVideo.enableSimulcastMode(True)
 
 ----boundary----
 
-name=VideoDeviceManager
+name=RtcVideo.setVideoEncoderConfig
+code=
+
+videoEncoderConfig = sdk.VideoEncoderConfig()
+videoEncoderConfig.width = int(self.widthEdit.text())
+videoEncoderConfig.height = int(self.heightEdit.text())
+videoEncoderConfig.frameRate = int(self.fpsEdit.text())
+videoEncoderConfig.maxBitrate = int(self.bitrateEdit.text())
+videoEncoderConfig.encoderPreference = sdk.VideoEncodePreference.Framerate
+
+self.rtcVideo.setVideoEncoderConfig(videoEncoderConfig)
+
+----boundary----
+
+name=RtcVideo.setVideoEncoderConfig(MultiConfig)
+code=
+
+videoEncoderConfig = sdk.VideoEncoderConfig()
+videoEncoderConfig.width = 1280
+videoEncoderConfig.height = 720
+videoEncoderConfig.frameRate = 15
+videoEncoderConfig.maxBitrate = -1
+videoEncoderConfig.encoderPreference = sdk.VideoEncodePreference.Framerate
+
+videoEncoderConfig1 = sdk.VideoEncoderConfig()
+videoEncoderConfig1.width = 640
+videoEncoderConfig1.height = 360
+videoEncoderConfig1.frameRate = 15
+videoEncoderConfig1.maxBitrate = -1
+videoEncoderConfig1.encoderPreference = sdk.VideoEncodePreference.Framerate
+
+videoEncoderConfig2 = sdk.VideoEncoderConfig()
+videoEncoderConfig2.width = 160
+videoEncoderConfig2.height = 90
+videoEncoderConfig2.frameRate = 15
+videoEncoderConfig2.maxBitrate = -1
+videoEncoderConfig2.encoderPreference = sdk.VideoEncodePreference.Framerate
+
+self.rtcVideo.setVideoEncoderConfig([videoEncoderConfig, videoEncoderConfig1])
+
+----boundary----
+
+name=RtcVideo.getAudioDeviceManager
+code=
+
+self.adm = self.rtcVideo.getAudioDeviceManager()
+if self.adm:
+    deviceInfoList = self.adm.enumerateAudioCaptureDevices2()
+    cameraIndex = 0
+    if cameraIndex < len(deviceInfoList):
+        self.adm.setAudioCaptureDevice(deviceInfoList[cameraIndex].device_id)
+        self.adm.getAudioCaptureDevice()
+
+----boundary----
+
+name=RtcVideo.getVideoDeviceManager
 code=
 
 self.vdm = self.rtcVideo.getVideoDeviceManager()
 if self.vdm:
-    deviceInfoList = self.vdm.getDeviceInfoList()
+    deviceInfoList = self.vdm.enumerateVideoCaptureDevices2()
     cameraIndex = 0
     if cameraIndex < len(deviceInfoList):
         self.vdm.setVideoCaptureDevice(deviceInfoList[cameraIndex].device_id)
@@ -40,7 +116,52 @@ if self.vdm:
 
 ----boundary----
 
-name=takeLocalSnapshot
+name=RtcVideo.enableAudioPropertiesReport
+code=
+
+apConfig = sdk.AudioPropertiesConfig(interval=200, enable_spectrum=False, enable_vad=False)
+self.rtcVideo.enableAudioPropertiesReport(apConfig)
+
+----boundary----
+
+name=RtcVideo.setLocalVideoMirrorType
+code=
+
+mirror = sdk.MirrorType.None_
+#mirror = sdk.MirrorType.Render
+#mirror = sdk.MirrorType.RenderAndEncoder
+self.rtcVideo.setLocalVideoMirrorType(mirror)
+
+----boundary----
+name=RtcVideo.getScreenCaptureSourceList
+code=
+
+sourceList = self.rtcVideo.getScreenCaptureSourceList()
+if sourceList:
+    sourceInfo = sourceList[0]
+    videoFrame = self.rtcVideo.getThumbnail(sourceInfo.type, sourceInfo.source_id, 320, 180)
+    if videoFrame:
+        if videoFrame.pixelFormat() == sdk.VideoPixelFormat.ARGB:
+            try:
+                imagePath = f'ScreenShare0.bmp'
+                width, height = videoFrame.width(), videoFrame.height()
+                stride = videoFrame.getPlaneStride(0)
+                arrayType = (ctypes.c_uint8 * (stride * height))
+                frameBuf = arrayType.from_address(videoFrame.getPlaneData(0).value)
+                qimg = QImage(frameBuf, width, height, stride, QImage.Format_ARGB32)
+                qimg.save(imagePath)
+                #from PIL import Image
+                #image = Image.frombytes('RGBA', (width, height), frameBuf, 'raw', 'BGRA')
+                #image.save(imagePath)
+                self.appendOutputEditText(f'ScreenShare Thumb: {imagePath}')
+                subprocess.Popen(imagePath, shell=True)
+            except Exception as ex:
+                self.appendOutputEditText(traceback.format_exc())
+        videoFrame.release()
+
+----boundary----
+
+name=RtcVideo.takeLocalSnapshot
 code=
 
 self.snapshotCount = 0
@@ -51,19 +172,26 @@ def onTakeLocalSnapshotResult(self, event_time: int, event_name: str, event_json
                               f'format {videoFrame.pixelFormat()}, planes {videoFrame.numberOfPlanes()}, stride {videoFrame.getPlaneStride(0)}')
     if videoFrame.pixelFormat() == sdk.VideoPixelFormat.ARGB:
         try:
-            from PIL import Image
             imagePath = f'localSnapshot{self.snapshotCount}.bmp'
-            arrayType = (ctypes.c_uint8 * (videoFrame.getPlaneStride(0) * videoFrame.height()))
+            width, height = videoFrame.width(), videoFrame.height()
+            stride = videoFrame.getPlaneStride(0)
+            arrayType = (ctypes.c_uint8 * (stride * height))
             frameBuf = arrayType.from_address(videoFrame.getPlaneData(0).value)
-            image = Image.frombytes('RGBA', (videoFrame.width(), videoFrame.height()), frameBuf, 'raw', 'BGRA')
-            image.save(imagePath)
+            qimg = QImage(frameBuf, width, height, stride, QImage.Format_ARGB32)
+            qimg.save(imagePath)
+            #from PIL import Image
+            #image = Image.frombytes('RGBA', (videoFrame.width(), videoFrame.height()), frameBuf, 'raw', 'BGRA')
+            #image.save(imagePath)
             self.appendOutputEditText(f'snapshot path: {imagePath}')
             subprocess.Popen(imagePath, shell = True)
         except Exception as ex:
-            self.appendOutputEditText(str(ex))
+            self.appendOutputEditText(traceback.format_exc())
     videoFrame.release()
     if self.snapshotCount < 2:
         self.delayCall(timeMs=1000, func=self.rtcVideo.takeLocalSnapshot, stream_index=self.snapShotStreamIndex)
+        #or
+        #self.delayCall(timeMs=1000, func=lambda:self.rtcVideo.takeLocalSnapshot(stream_index=self.snapShotStreamIndex))
+
 MainWindow.onTakeLocalSnapshotResult = onTakeLocalSnapshotResult
 self.RTCVideoEventHandler['onTakeLocalSnapshotResult'] = self.onTakeLocalSnapshotResult
 
@@ -74,7 +202,7 @@ if self.rtcVideo:
 
 ----boundary----
 
-name=takeRemoteSnapshot
+name=RtcVideo.takeRemoteSnapshot
 code=
 
 self.snapshotCount = 0
@@ -85,19 +213,24 @@ def onTakeRemoteSnapshotResult(self, event_time: int, event_name: str, event_jso
                               f'format {videoFrame.pixelFormat()}, planes {videoFrame.numberOfPlanes()}, stride {videoFrame.getPlaneStride(0)}')
     if videoFrame.pixelFormat() == sdk.VideoPixelFormat.ARGB:
         try:
-            from PIL import Image
             imagePath = f'remoteSnapshot{self.snapshotCount}.bmp'
-            arrayType = (ctypes.c_uint8 * (videoFrame.getPlaneStride(0) * videoFrame.height()))
+            width, height = videoFrame.width(), videoFrame.height()
+            stride = videoFrame.getPlaneStride(0)
+            arrayType = (ctypes.c_uint8 * (stride * height))
             frameBuf = arrayType.from_address(videoFrame.getPlaneData(0).value)
-            image = Image.frombytes('RGBA', (videoFrame.width(), videoFrame.height()), frameBuf, 'raw', 'BGRA')
-            image.save(imagePath)
+            qimg = QImage(frameBuf, width, height, stride, QImage.Format_ARGB32)
+            qimg.save(imagePath)
+            #from PIL import Image
+            #image = Image.frombytes('RGBA', (videoFrame.width(), videoFrame.height()), frameBuf, 'raw', 'BGRA')
+            #image.save(imagePath)
             self.appendOutputEditText(f'snapshot path: {imagePath}')
             subprocess.Popen(imagePath, shell = True)
         except Exception as ex:
-            self.appendOutputEditText(str(ex))
+            self.appendOutputEditText(traceback.format_exc())
     videoFrame.release()
     if self.snapshotCount < 2:
         self.delayCall(timeMs=1000, func=self.rtcVideo.takeRemoteSnapshot, stream_key=self.snapshotStreamKey)
+
 MainWindow.onTakeRemoteSnapshotResult = onTakeRemoteSnapshotResult
 self.RTCVideoEventHandler['onTakeRemoteSnapshotResult'] = self.onTakeRemoteSnapshotResult
 
@@ -111,7 +244,42 @@ if self.rtcVideo:
 
 ----boundary----
 
-name=sendRoomMessage
+name=RtcVideo.setRemoteVideoSuperResolution
+code=
+
+roomId = self.roomIdCombox.currentText().strip()
+remoteUserId = 'RemoteUserIdToBeReplaced'
+streamIndex = sdk.StreamIndex.Main
+mode = sdk.VideoSuperResolutionMode.On
+#mode = sdk.VideoSuperResolutionMode.Off
+streamKey = sdk.RemoteStreamKey(room_id=roomId, user_id=remoteUserId, stream_index=streamIndex)
+self.rtcVideo.setRemoteVideoSuperResolution(stream_key=streamKey, mode=mode)
+
+----boundary----
+
+name=RTCRoom.setRemoteVideoConfig
+code=
+
+remoteVideoConfig = sdk.RemoteVideoConfig()
+remoteVideoConfig.framerate = 15
+
+#remoteVideoConfig.resolution_width = 1280
+#remoteVideoConfig.resolution_height = 720
+
+remoteVideoConfig.resolution_width = 640
+remoteVideoConfig.resolution_height = 360
+
+#remoteVideoConfig.resolution_width = 160
+#remoteVideoConfig.resolution_height = 90
+
+roomId = self.roomIdCombox.currentText().strip()
+remoteUserId = 'RemoteUserIdToBeReplaced'
+if roomId in self.rtcRooms:
+    self.rtcRooms[roomId].setRemoteVideoConfig(remoteUserId, remoteVideoConfig)
+
+----boundary----
+
+name=RTCRoom.sendRoomMessage
 code=
 
 message = QApplication.clipboard().text()
@@ -120,7 +288,7 @@ self.rtcRooms[roomId].sendRoomMessage(message)
 
 ----boundary----
 
-name=sendRoomBinaryMessage
+name=RTCRoom.sendRoomBinaryMessage
 code=
 
 message = b'hello'
@@ -129,7 +297,7 @@ self.rtcRooms[roomId].sendRoomBinaryMessage(message)
 
 ----boundary----
 
-name=sendUserMessage
+name=RTCRoom.sendUserMessage
 code=
 
 remoteUserId = 'RemoteUserIdToBeReplaced'
@@ -142,7 +310,7 @@ self.rtcRooms[roomId].sendUserMessage(remoteUserId, message, config)
 
 ----boundary----
 
-name=sendUserBinaryMessage
+name=RTCRoom.sendUserBinaryMessage
 code=
 
 remoteUserId = 'RemoteUserIdToBeReplaced'
@@ -155,16 +323,33 @@ self.rtcRooms[roomId].sendUserBinaryMessage(remoteUserId, message, config)
 
 ----boundary----
 
-name=setRemoteVideoSuperResolution
+name=VideoEffect.enableVirtualBackground
 code=
 
-roomId = self.roomIdCombox.currentText().strip()
-remoteUserId = 'RemoteUserIdToBeReplaced'
-streamIndex = sdk.StreamIndex.Main
-mode = sdk.VideoSuperResolutionMode.On
-#mode = sdk.VideoSuperResolutionMode.Off
-streamKey = sdk.RemoteStreamKey(room_id=roomId, user_id=remoteUserId, stream_index=streamIndex)
-self.rtcVideo.setRemoteVideoSuperResolution(stream_key=streamKey, mode=mode)
+self.videoEffect = self.rtcVideo.getVideoEffectInterface()
+if self.videoEffect:
+    licensePath = os.path.join(sdk.SdkBinDirFull, '../effect.lic')
+    modelPath = os.path.join(sdk.SdkBinDirFull, '../cvlab/model')
+    imagePath = os.path.join(sdk.ExeDir, 'VirtualBackgourndImages/bg03.jpg')
+    ret = self.videoEffect.initCVResource(licensePath, modelPath)
+    if ret == 0:
+        ret = self.videoEffect.enableVideoEffect()
+        stickerPath = os.path.join(sdk.SdkBinDirFull, '../cvlab/ComposeMakeup/matting_bg')
+        virtualSource = sdk.VirtualBackgroundSource(source_type=sdk.VirtualBackgroundSourceType.Image,
+                                                    source_color=0xFFFFFFFF, source_path=imagePath)
+        ret = self.videoEffect.enableVirtualBackground(stickerPath, virtualSource)
+        #disable after 10 seconds
+        self.delayCall(timeMs=10000, func=self.videoEffect.disableVirtualBackground)
+
+----boundary----
+
+name=VideoEffect.disableVirtualBackground
+code=
+
+#self.videoEffect = self.rtcVideo.getVideoEffectInterface()
+if self.videoEffect:
+    self.videoEffect.disableVirtualBackground()
+    self.videoEffect.disableVideoEffect()
 
 ----boundary----
 
