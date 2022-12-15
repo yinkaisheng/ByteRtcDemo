@@ -94,7 +94,7 @@ def APITime(func):
     def API(*args, **kwargs):
         global LastAPICall
         if '.' in func.__qualname__:
-            logArgs = args[1:]  #class method, exclude self
+            logArgs = args[1:]  # class method, exclude self
         else:
             logArgs = args
         argsstr = ', '.join(f"'{arg}'" if isinstance(arg, str) else str(arg) for arg in logArgs)
@@ -679,6 +679,9 @@ class DeviceTransportType(MyIntEnum):
     BlueToothStereoMode = 4
     DisplayAudio = 5
     Virtual = 6
+    USB = 7
+    PCI = 8
+    AirPlay = 9
 
 
 class AudioAbilityType(MyIntEnum):
@@ -931,7 +934,7 @@ class StructAudioPropertiesConfig(ctypes.Structure):
 
 class AudioPropertiesConfig:
     def __init__(self, interval: int = 200, enable_spectrum: bool = False, enable_vad: bool = True):
-        self.interval = interval    #>=100
+        self.interval = interval  # >=100
         self.enable_spectrum = enable_spectrum
         self.enable_vad = enable_vad
 

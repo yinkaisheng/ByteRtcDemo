@@ -41,6 +41,15 @@ if self.rtcVideo:
 
 ----boundary----
 
+name=RtcVideo.startVideoCapture
+code=
+
+self.rtcVideo.startVideoCapture()
+#self.rtcVideo.stopVideoCapture()
+#self.delayCall(timeMs=6000, func=self.rtcVideo.stopVideoCapture)
+
+----boundary----
+
 name=RtcVideo.enableSimulcastMode
 code=
 
