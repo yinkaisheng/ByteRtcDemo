@@ -94,7 +94,8 @@ MainWindow.startCameraTest = startCameraTest
 def onConnectionStateChanged(self, event_time: int, event_name: str, event_json: str, event: dict) -> None:
     #自定义回调处理，打开log文件查看dict对象内容
     if event['state'] == sdk.ConnectionState.Connected:
-        pass
+        # write code here
+        self.RTCVideoEventHandler['onConnectionStateChanged'] = None
 
 MainWindow.onConnectionStateChanged = onConnectionStateChanged
 

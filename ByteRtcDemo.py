@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 #author: yinkaisheng@foxmail.com
 from __future__ import annotations
+import io
 import os
 import sys
 import time
@@ -11,6 +12,7 @@ import types
 import ctypes
 import random
 import string
+import struct
 import datetime
 import threading
 import traceback
@@ -1256,11 +1258,13 @@ class MainWindow(QMainWindow, astask.AsyncTask):
     def onComboxAppNameSelectionChanged(self, currentIndex: int) -> None:
         pass
 
-    def checkSDKResult(self, code: int) -> None:
+    def checkSDKResult(self, code: int, api: str = '') -> None:
         if code != 0:
             errorDesc = sdk.getErrorDescription(code)
-            errorInfo = f'{sdk.LastAPICall}\n\nerror: {code}\nInfo: {errorDesc}'
-            sdk.log.info(f'error {code}, error desc: {errorDesc}')
+            if not api:
+                api = sdk.LastAPICall
+            errorInfo = f'API: {api}\n\nerror: {code}\nInfo: {errorDesc}'
+            sdk.log.info(f'API: {api} error {code}, error desc: {errorDesc}')
             self.tipDlg.showTip(errorInfo)
 
     def onClickRunCode(self) -> None:
@@ -1683,7 +1687,7 @@ class MainWindow(QMainWindow, astask.AsyncTask):
             frameBuilder.linesize = (ctypes.c_int * 4)(videoWidth * 4)
             frameBuilder.width = videoWidth
             frameBuilder.height = videoHeight
-            frameBuilder.timestamp_us = int(time.time() * 100000)
+            frameBuilder.timestamp_us = int(time.time() * 1000000)
             videoFrame = sdk.buildVideoFrame(frameBuilder)
             rtcVideo.pushExternalVideoFrame(videoFrame)
             #C++ pushExternalVideoFrame will release videoFrame, we can't release it again, so set its member to 0
@@ -1808,9 +1812,7 @@ class MainWindow(QMainWindow, astask.AsyncTask):
     def onRoomStateChanged(self, event_time: int, event_name: str, event_json: str, event: dict) -> None:
         state = event['state']
         if state != 0:
-            errorInfo = sdk.getErrorDescription(state)
-            sdk.log.info(f'error desc: {errorInfo}')
-            self.checkSDKResult(state)
+            self.checkSDKResult(state, 'onRoomStateChanged')
 
     def onUserJoined(self, event_time: int, event_name: str, event_json: str, event: dict) -> None:
         if not self.currentEventRoomId in self.rtcRoomUsers:

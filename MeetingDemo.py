@@ -42,7 +42,6 @@ ComboxItemHeight = ComboxHeight - 2
 EditHeight = ButtonHeight - 2
 DemoTitle = 'MeetingDemo(sdk:3.48)'
 IcoPath = os.path.join(sdk.ExeDir, 'volcengine.ico')
-RtcVideo = None
 DevelopDllDir = ''
 JoinName = '加入房间'
 ViewBackground = 0xDDDDDD
@@ -74,7 +73,7 @@ class TipDlg(QDialog):
         self.timer = QTimer()
         self.timer.setSingleShot(True)
         self.timer.timeout.connect(self.close)
-        self.tipSeconds = tipSeconds * 1000
+        self.tipMSeconds = tipSeconds * 1000
 
     def mousePressEvent(self, event: QMouseEvent) -> None:
         if event.button() == Qt.LeftButton:
@@ -88,7 +87,7 @@ class TipDlg(QDialog):
 
     def showTip(self, msg: str = '') -> None:
         self.timer.stop()
-        self.timer.start(self.tipSeconds)
+        self.timer.start(self.tipMSeconds)
         if msg:
             if msg != self.tipLabel.text():
                 self.tipLabel.resize(dpiSize(200), dpiSize(100))
@@ -1478,7 +1477,6 @@ class MainWindow(QMainWindow, astask.AsyncTask):
             'onUserUnpublishScreen': self.onUserUnpublishScreen,
             'onRoomMessageReceived': self.onRoomMessageReceived,
         }
-    # RTCVideo Event Handler
 
     def onConnectionStateChanged(self, event_time: int, event_name: str, event_json: str, event: dict) -> None:
         pass

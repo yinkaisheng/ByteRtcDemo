@@ -4,6 +4,7 @@
 import os
 import io
 import sys
+import time
 import json
 import ctypes
 import pickle
@@ -38,6 +39,14 @@ def printx(*values, sep: str = ' ', end: str = None, flush: bool = False, caller
     print(timestr, *values, sep=sep, end=end)
     if flush and sys.stdout:
         sys.stdout.flush()
+
+
+def millisecondsSinceEpoch() -> int:
+    return int(time.time() * 1000)
+
+
+def dateTimeFromMsEpoch(millisecondsSinceEpoch: int) -> datetime.datetime:
+    return datetime.datetime.fromtimestamp(millisecondsSinceEpoch / 1000)
 
 
 def setConsoleTitle(title: str) -> None:

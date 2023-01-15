@@ -287,6 +287,19 @@ if roomId in self.rtcRooms:
     self.rtcRooms[roomId].setRemoteVideoConfig(remoteUserId, remoteVideoConfig)
 
 ----boundary----
+name=RTCRoom.startForwardStreamToRooms
+code=
+
+token = ''
+room_id = 'sdktest'
+streamInfo = sdk.ForwardStreamInfo(token, room_id)
+roomId = self.roomIdCombox.currentText().strip()
+rtcRoom = self.rtcRooms.get(roomId, None)
+if rtcRoom:
+    rtcRoom.startForwardStreamToRooms([streamInfo])
+    self.delayCall(timeMs=10000, func=rtcRoom.stopForwardStreamToRooms)
+            
+----boundary----
 
 name=RTCRoom.sendRoomMessage
 code=

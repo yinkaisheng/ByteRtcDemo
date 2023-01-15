@@ -155,15 +155,17 @@ def onConnectionStateChanged(self, event_time: int, event_name: str, event_json:
 
         self.delayCall(6000, changeToCameraSource)
 
+        self.RTCVideoEventHandler['onConnectionStateChanged'] = None
+
 
 MainWindow.onConnectionStateChanged = onConnectionStateChanged
 
 
 def onRoomStateChanged(self, event_time: int, event_name: str, event_json: str, event: dict) -> None:
     #自定义回调处理，打开log文件查看dict对象内容
-    if event['state'] != 0:
-        print('wrong')
-
+    state = event['state']
+    if state != 0:
+        self.checkSDKResult(state, 'onRoomStateChanged')
 
 MainWindow.onRoomStateChanged = onRoomStateChanged
 

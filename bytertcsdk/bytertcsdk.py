@@ -27,8 +27,8 @@ SdkDirFull = os.path.join(ExeDir, SdkDir)  # d:\Codes\Python\ByteRtcDemo\bytertc
 # the followings must be referenced by full name, such as bytertcsdk.bytertcsdk.SdkBinDir
 SdkBinDir = ''  # binx86_3.45.104
 SdkBinDirFull = ''  # d:\Codes\Python\ByteRtcDemo\bytertcsdk\binx86_3.43.102
+SdkVersion = ''  # '3.45.104', get from folder name
 SdkDllName = 'VolcEngineRTC.dll'
-SdkVersion = ''  # '3.45.104' get from folder name
 APILogPath = f'pid{os.getpid()}_api.log'
 DEVICE_ID_LENGTH = 512
 
@@ -1299,6 +1299,29 @@ class VideoDeviceInfo:
         return videoDeviceInfo
 
 
+class StructForwardStreamInfo(ctypes.Structure):
+    _fields_ = [("token", ctypes.c_char_p),
+                ("room_id", ctypes.c_char_p),
+                ]
+
+
+class ForwardStreamInfo:
+    def __init__(self, token: str, room_id: str):
+        self.token = token
+        self.room_id = room_id
+
+    def __str__(self) -> str:
+        return f'{self.__class__.__name__}(token={self.token}, room_id={self.room_id}'
+
+    __repr__ = __str__
+
+
+class StructForwardStreamConfiguration(ctypes.Structure):
+    _fields_ = [("forward_stream_dests", ctypes.POINTER(StructForwardStreamInfo)),
+                ("dest_count", ctypes.c_int32),
+                ]
+
+
 class StructCloudProxyInfo(ctypes.Structure):
     _fields_ = [("cloud_proxy_ip", ctypes.c_char_p),
                 ("cloud_proxy_port", ctypes.c_int),
@@ -1653,6 +1676,30 @@ class RTCRoom:
             self.dll.byte_RTCRoom_setRemoteVideoConfig(self.pIRTCRoom, user_id.encode(), ctypes.byref(video_config.toStruct()))
             ret = None
         return ret
+
+    @ APITime
+    def startForwardStreamToRooms(self, configs: List[ForwardStreamInfo]) -> None:
+        if not self.pIRTCRoom:
+            return
+        configArray = (StructForwardStreamInfo * len(configs))(*(StructForwardStreamInfo(it.token.encode(), it.room_id.encode()) for it in configs))
+        streamConfig = StructForwardStreamConfiguration(configArray, len(configArray))
+        ret = self.dll.byte_RTCRoom_startForwardStreamToRooms(self.pIRTCRoom, ctypes.byref(streamConfig))
+        return ret
+
+    @ APITime
+    def updateForwardStreamToRooms(self, configs: List[ForwardStreamInfo]) -> None:
+        if not self.pIRTCRoom:
+            return
+        configArray = (StructForwardStreamInfo * len(configs))(*(StructForwardStreamInfo(it.token.encode(), it.room_id.encode()) for it in configs))
+        streamConfig = StructForwardStreamConfiguration(configArray, len(configArray))
+        ret = self.dll.byte_RTCRoom_updateForwardStreamToRooms(self.pIRTCRoom, ctypes.byref(streamConfig))
+        return ret
+
+    @ APITime
+    def stopForwardStreamToRooms(self) -> None:
+        if not self.pIRTCRoom:
+            return
+        self.dll.byte_RTCRoom_stopForwardStreamToRooms(self.pIRTCRoom)
 
     @ APITime
     def sendRoomMessage(self, message: str) -> None:
