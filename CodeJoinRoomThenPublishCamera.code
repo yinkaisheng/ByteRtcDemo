@@ -1,4 +1,4 @@
-#下面所有代码在MainWindow中的上下文执行
+#下面所有代码在MainWindow.execCode()中执行
 def publishCameraStreamTest(self, cameraIndex: int):
     index = self.envCombox.currentIndex()
     if index >= 0:

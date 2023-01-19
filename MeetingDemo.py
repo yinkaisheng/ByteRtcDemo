@@ -29,6 +29,7 @@ import pyqt5AsyncTask as astask
 import util
 from bytertcsdk import bytertcsdk as sdk
 
+SDKVersion = 'main'
 UseQtDPIScaling = 0
 if UseQtDPIScaling:
     QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
@@ -40,7 +41,7 @@ ButtonHeight = 24
 ComboxHeight = ButtonHeight - 2
 ComboxItemHeight = ComboxHeight - 2
 EditHeight = ButtonHeight - 2
-DemoTitle = 'MeetingDemo(sdk:3.48)'
+DemoTitle = f'MeetingDemo(sdk:{SDKVersion})'
 IcoPath = os.path.join(sdk.ExeDir, 'volcengine.ico')
 DevelopDllDir = ''
 JoinName = '加入房间'
@@ -911,7 +912,21 @@ class MainWindow(QMainWindow, astask.AsyncTask):
             wg.setSizePolicy(sp)
 
     def initSDK(self) -> None:
-        sdk.selectSdkBinDir('binx86_3.48')
+        sdk.selectSdkBinDir(f'binx86_{SDKVersion}')
+        binDirs = util.getFileText(os.path.join(sdk.SdkBinDirFull, '.dllpath')).splitlines()
+        binDirs.extend(util.getFileText(os.path.join(sdk.ExeDir, sdk.ExeNameNoExt + '.dllpath')).splitlines())
+        for binDir in binDirs:
+            binPath = os.path.join(binDir, sdk.SdkDllName)
+            if os.path.exists(binPath):
+                global DevelopDllDir
+                DevelopDllDir = binDir
+                sdk.log.info(f'---- {binPath} exists, use this dll')
+                os.environ["PATH"] = binDir + os.pathsep + os.environ["PATH"]
+                if sdk.isPy38OrHigher():
+                    os.add_dll_directory(binDir)
+                break
+            else:
+                print(f'---- develop dir: {binDir} does not exist')
         self.rtcVideo = sdk.RTCVideo(app_id='5a7451222679214f668e7085', event_handler=self, parameters='{"testKey": "testValue"}')
         self.rtcVideo.enableSimulcastMode(True)
         self.audioDeviceManager = self.rtcVideo.getAudioDeviceManager()

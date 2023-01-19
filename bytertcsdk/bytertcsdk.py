@@ -82,10 +82,6 @@ if sys.stdout:
     log.getLogger().addHandler(__stdsh)
 
 
-def isPy38OrHigher():
-    return sys.version_info[:2] >= (3, 8)
-
-
 LastAPICall = ''
 
 
@@ -1239,8 +1235,8 @@ class AudioDeviceInfo:
         self.is_system_default = False
 
     def __str__(self) -> str:
-        return f'{self.__class__.__name__}(device_id={self.device_id}, device_name={self.device_name}' \
-               f', device_short_name={self.device_short_name}, device_container_id={self.device_container_id}' \
+        return f'{self.__class__.__name__}(device_id="{self.device_id}", device_name="{self.device_name}"' \
+               f', device_short_name="{self.device_short_name}", device_container_id={self.device_container_id}' \
                f', device_vid={self.device_vid}, device_pid={self.device_pid}, transport_type={self.transport_type}' \
                f', volume_settable={self.volume_settable}, is_system_default={self.is_system_default}'
 
@@ -1281,7 +1277,7 @@ class VideoDeviceInfo:
         self.transport_type = DeviceTransportType.Unknown
 
     def __str__(self) -> str:
-        return f'{self.__class__.__name__}(device_id={self.device_id}, device_name={self.device_name}' \
+        return f'{self.__class__.__name__}(device_id="{self.device_id}", device_name="{self.device_name}"' \
                f', device_vid={self.device_vid}, device_pid={self.device_pid}, transport_type={self.transport_type})'
 
     __repr__ = __str__
@@ -2020,6 +2016,7 @@ class RTCVideo:
             return
         self.dll.byte_RTCVideo_registerVideoFrameObserver(self.pIRTCVideo, videoFrameObserver)
 
+    @ APITime
     def saveVideoFrameObserverFrame(self, frameType: SaveFrameType, save: bool, fileCount: int, frameCount: int) -> None:
         if not self.pIRTCVideo:
             return
@@ -2197,8 +2194,8 @@ class RTCVideo:
             sourceInfo.application = sSourceInfo.application.decode() if sSourceInfo.application else ''
             sourceInfo.pid = sSourceInfo.pid
             sourceInfo.primaryMonitor = sSourceInfo.primaryMonitor
-            sourceInfo.region_rect = Rectangle(x=sourceInfo.region_rect.x, y=sourceInfo.region_rect.y,
-                                               width=sourceInfo.region_rect.width, height=sourceInfo.region_rect.height)
+            sourceInfo.region_rect = Rectangle(x=sSourceInfo.region_rect.x, y=sSourceInfo.region_rect.y,
+                                               width=sSourceInfo.region_rect.width, height=sSourceInfo.region_rect.height)
             sourceInfo.source_id = sSourceInfo.source_id
             sourceInfo.source_name = sSourceInfo.source_name.decode() if sSourceInfo.source_name else ''
             sourceInfo.type = ScreenCaptureSourceType(sSourceInfo.type)

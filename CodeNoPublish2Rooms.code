@@ -1,4 +1,4 @@
-#下面所有代码在MainWindow中的上下文执行
+#下面所有代码在MainWindow.execCode()中执行
 def noPublisTest(self):
     index = self.envCombox.currentIndex()
     if index >= 0:
@@ -18,6 +18,8 @@ def noPublisTest(self):
     if self.cloudProxyCheck.isChecked():
         self.onClickCloudProxyCheck()
     #self.rtcVideo.startCloudProxy([('10.37.144.157', 6779)])
+
+    self.rtcVideo.registerVideoFrameObserver(self.rtcVideo.pVideoFrameObserver)
 
 
 #给MainWindow动态添加方法

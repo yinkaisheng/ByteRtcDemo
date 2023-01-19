@@ -22,7 +22,7 @@ from typing import Any, Callable, Dict, List, Tuple
 from PyQt5.QtCore import QItemSelection, QModelIndex, QPointF, QObject, QRect, QRegExp, QSortFilterProxyModel, QThread, QTimer, Qt, pyqtSignal
 from PyQt5.QtGui import QCloseEvent, QColor, QCursor, QFont, QIcon, QImage, QIntValidator, QPainter, QPen, QPixmap
 from PyQt5.QtGui import QContextMenuEvent, QKeyEvent, QMouseEvent, QStandardItem, QStandardItemModel, QTextCursor, QTextOption
-from PyQt5.QtWidgets import QAbstractItemView, QAction, QApplication, QDesktopWidget, QDialog, QInputDialog, QMainWindow, QMenu, QMessageBox, QWidget
+from PyQt5.QtWidgets import QAbstractItemView, QAction, QApplication, QDesktopWidget, QDialog, QInputDialog, QMainWindow, QMenu, QMessageBox, QTabWidget, QWidget
 from PyQt5.QtWidgets import QCheckBox, QComboBox, QLabel, QLineEdit, QListView, QPushButton, QRadioButton, QSlider, QPlainTextEdit, QTextEdit, QToolTip, QTreeView
 from PyQt5.QtWidgets import qApp, QGridLayout, QHBoxLayout, QLayout, QSplitter, QVBoxLayout, QSystemTrayIcon
 from QCodeEditor import QCodeEditor
@@ -112,7 +112,7 @@ class SelectSdkDlg(QDialog):
                     DevelopDllDir = binDir
                     sdk.log.info(f'---- {binPath} exists, use this dll')
                     os.environ["PATH"] = binDir + os.pathsep + os.environ["PATH"]
-                    if sdk.isPy38OrHigher():
+                    if util.IsPy38OrHigher:
                         os.add_dll_directory(binDir)
                     break
                 else:
@@ -234,16 +234,10 @@ class CodeDlg(QDialog):
         self.checkScrollToEnd.setChecked(True)
         hLayout.addWidget(self.checkScrollToEnd)
 
-        self.qsplitter = QSplitter(Qt.Vertical)
-        vLayout.addWidget(self.qsplitter)
         self.codeEdit = QCodeEditor()
+        vLayout.addWidget(self.codeEdit)
         self.codeEdit.setStyleSheet('QPlainTextEdit{font-size:%dpx;font-family:Consolas;background-color:rgb(204,232,207);}' % dpiSize(16))
-        # self.codeEdit.setPlainText(codeText)
-        self.qsplitter.addWidget(self.codeEdit)
-        self.outputEdit = QPlainTextEdit()
-        self.outputEdit.setStyleSheet('QPlainTextEdit{font-size:%dpx;font-family:Consolas;background-color:rgb(204,232,207);}' % dpiSize(14))
-        self.qsplitter.addWidget(self.outputEdit)
-        self.qsplitter.setSizes([100, 100])
+        self.outputEdit = self.mainWindow.apiLogEdit
         self.Signal.connect(self.outputEdit.appendPlainText)
         sdk.GuiStreamObj.setLogHandler(self.logCallbackHandler)
 
@@ -294,6 +288,8 @@ class CodeDlg(QDialog):
             self.mainWindow.execCode(text)
             sdk.log.info(f'exec(...) done\n')
         self.scrollToEnd()
+        self.mainWindow.show()
+        self.mainWindow.activateWindow()
 
     def onClickClearCode(self) -> None:
         self.codeEdit.clear()
@@ -423,6 +419,7 @@ class MainWindow(QMainWindow, astask.AsyncTask):
             self.delayCall(timeMs=100, func=self.activateWindow)
 
         self.rtcVideo = None  # sdk.RTCVideo(app_id='', event_handler=None, parameters='')
+        self.adm = None
         self.vdm = None
         self.videoEffect = None
         #self.rtcRoom = None
@@ -456,7 +453,9 @@ class MainWindow(QMainWindow, astask.AsyncTask):
     def createUI(self) -> None:
         self.setWindowTitle(DemoTitle)
         self.setWindowIcon(QIcon(IcoPath))
-        self.resize(dpiSize(1400), dpiSize(800))
+        desktopRect = QDesktopWidget().availableGeometry()
+        width, height = desktopRect.width() * 7 // 10, desktopRect.height() * 3 // 4
+        self.resize(width, height)
         self.intValidator = QIntValidator()
 
         mainWg = QWidget()
@@ -590,6 +589,19 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         stopAudioCaptureBtn.setMinimumHeight(dpiSize(ButtonHeight))
         stopAudioCaptureBtn.clicked.connect(self.onClickStopAudioCaptureBtn)
         hLayout.addWidget(stopAudioCaptureBtn)
+        admcBtn = QPushButton('ADM-C')
+        admcBtn.setMaximumWidth(dpiSize(50))
+        admcBtn.setMinimumHeight(dpiSize(ButtonHeight))
+        admcBtn.clicked.connect(self.onClickADMCaptureBtn)
+        admcBtn.setToolTip('AudioDeviceManager enumerateAudioCaptureDevices')
+        hLayout.addWidget(admcBtn)
+        admpBtn = QPushButton('ADM-P')
+        admpBtn.setMaximumWidth(dpiSize(50))
+        admpBtn.setMinimumHeight(dpiSize(ButtonHeight))
+        admpBtn.clicked.connect(self.onClickADMPlaybackBtn)
+        admpBtn.setToolTip('AudioDeviceManager enumerateAudioPlaybackDevices')
+        hLayout.addWidget(admpBtn)
+        #hLayout.addStretch(1)
 
         # ----
         hLayout = QHBoxLayout()
@@ -612,13 +624,8 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         self.capturePreferenceCombox.setStyleSheet('QAbstractItemView::item {height: %dpx;}' % dpiSize(ComboxItemHeight))
         self.capturePreferenceCombox.setView(QListView())
         self.capturePreferenceCombox.addItems(f'{it.name} {it.value}' for it in sdk.CapturePreference)
+        self.capturePreferenceCombox.setCurrentIndex(1)
         hLayout.addWidget(self.capturePreferenceCombox)
-        vdmBtn = QPushButton('VDM')
-        vdmBtn.setMaximumWidth(dpiSize(50))
-        vdmBtn.setMinimumHeight(dpiSize(ButtonHeight))
-        vdmBtn.clicked.connect(self.onClickVDMBtn)
-        vdmBtn.setToolTip('VideoDeviceManager enumerateVideoCaptureDevices')
-        hLayout.addWidget(vdmBtn)
         hLayout.addStretch(1)
 
         # ----
@@ -698,6 +705,12 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         stopVideoCaptureBtn.setMinimumHeight(dpiSize(ButtonHeight))
         stopVideoCaptureBtn.clicked.connect(self.onClickStopVideoCaptureBtn)
         hLayout.addWidget(stopVideoCaptureBtn)
+        vdmBtn = QPushButton('VDM')
+        vdmBtn.setMaximumWidth(dpiSize(50))
+        vdmBtn.setMinimumHeight(dpiSize(ButtonHeight))
+        vdmBtn.clicked.connect(self.onClickVDMBtn)
+        vdmBtn.setToolTip('VideoDeviceManager enumerateVideoCaptureDevices')
+        hLayout.addWidget(vdmBtn)
 
         # ----
         hLayout = QHBoxLayout()
@@ -863,6 +876,41 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         # hLayout.addStretch(1)
 
         # ----
+        hLayout = QHBoxLayout()
+        vLayout.addLayout(hLayout)
+        saveLocalStreamCheck = QCheckBox('saveLocalStream')
+        saveLocalStreamCheck.setMinimumHeight(dpiSize(ButtonHeight))
+        saveLocalStreamCheck.clicked.connect(self.onClickSaveLocalStreamCheck)
+        hLayout.addWidget(saveLocalStreamCheck)
+        saveRemoteStreamCheck = QCheckBox('saveRemoteStream')
+        saveRemoteStreamCheck.setMinimumHeight(dpiSize(ButtonHeight))
+        hLayout.addWidget(saveRemoteStreamCheck)
+        frameCountLabel = QLabel('  FrameCount:')
+        hLayout.addWidget(frameCountLabel)
+        self.saveStreamFrameCountEdit = QLineEdit(f'{self.configJson["saveStreamFrameCount"]}')
+        self.saveStreamFrameCountEdit.setMinimumHeight(dpiSize(EditHeight))
+        self.saveStreamFrameCountEdit.setMaximumWidth(dpiSize(40))
+        self.saveStreamFrameCountEdit.setValidator(self.intValidator)
+        hLayout.addWidget(self.saveStreamFrameCountEdit)
+
+        # ----
+        hLayout = QHBoxLayout()
+        vLayout.addLayout(hLayout)
+        saveLocalScreenCheck = QCheckBox('saveLocalScreen')
+        saveLocalScreenCheck.setMinimumHeight(dpiSize(ButtonHeight))
+        hLayout.addWidget(saveLocalScreenCheck)
+        saveRemoteScreenCheck = QCheckBox('saveRemoteScreen')
+        saveRemoteScreenCheck.setMinimumHeight(dpiSize(ButtonHeight))
+        hLayout.addWidget(saveRemoteScreenCheck)
+        frameCountLabel = QLabel('  FrameCount:')
+        hLayout.addWidget(frameCountLabel)
+        self.saveScreenFrameCountEdit = QLineEdit(f'{self.configJson["saveScreenFrameCount"]}')
+        self.saveScreenFrameCountEdit.setMinimumHeight(dpiSize(EditHeight))
+        self.saveScreenFrameCountEdit.setMaximumWidth(dpiSize(40))
+        self.saveScreenFrameCountEdit.setValidator(self.intValidator)
+        hLayout.addWidget(self.saveScreenFrameCountEdit)
+
+        # ----
         vLayout.addStretch(1)
 
         # --------
@@ -912,28 +960,6 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         self.copyViewHandleAction = QAction('Copy View Handle', self)
         self.copyViewHandleAction.triggered.connect(self.onActionCopyViewHandle)
 
-        # ----
-        eventWidget = QWidget()
-        vSplitter.addWidget(eventWidget)
-        vSplitter.setSizes([250, 100])
-        vLayout = QVBoxLayout()
-        vLayout.setContentsMargins(0, 0, 0, 0)
-        eventWidget.setLayout(vLayout)
-
-        # ----
-        #hLayout = QHBoxLayout()
-        # vLayout.addLayout(hLayout)
-
-        #eventTypeLabel = QLabel('EventFilter Type:')
-        # hLayout.addWidget(eventTypeLabel)
-        #self.eventTypeCombox = QComboBox()
-        # self.eventTypeCombox.setMinimumHeight(dpiSize(ComboxHeight))
-        #self.eventTypeCombox.setStyleSheet('QAbstractItemView::item {height: %dpx;}' % dpiSize(ComboxItemHeight))
-        # self.eventTypeCombox.setView(QListView())
-        #self.eventTypeCombox.addItems(['All', 'RTCVideoEvent', 'RTCRoomEvent'])
-        # self.eventTypeCombox.setCurrentIndex(0)
-        # self.eventTypeCombox.currentIndexChanged.connect(self.onComboxEventTypeSelectionChanged)
-        # hLayout.addWidget(self.eventTypeCombox)
         eventNameLabel = QLabel('EventNameFilter:')
         hLayout.addWidget(eventNameLabel)
         self.eventNameFilterEdit = QLineEdit('')
@@ -951,8 +977,18 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         hLayout.addStretch(1)
 
         # ----
+        self.tab = QTabWidget()
+        self.tab.setTabsClosable(False)
+        self.tab.currentChanged.connect(self.onTabSelectionChanged)
+        vSplitter.addWidget(self.tab)
+        vSplitter.setSizes([250, 100])
+
+        eventWidget = QWidget()
+        self.tab.addTab(eventWidget, 'EventLog')
+
         hLayout = QHBoxLayout()
-        vLayout.addLayout(hLayout)
+        hLayout.setContentsMargins(0, 0, 0, 0)
+        eventWidget.setLayout(hLayout)
 
         self.itemModel = QStandardItemModel(0, 4)
         self.itemModel.setHeaderData(ColumnEventType, Qt.Horizontal, "Type")
@@ -983,11 +1019,14 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         self.eventEdit.setLineWrapMode(QPlainTextEdit.NoWrap)
         self.eventEdit.setStyleSheet('QPlainTextEdit{font-size:%dpx;font-family:Consolas;background-color:rgb(250,250,250);}' % dpiSize(14))
         hLayout.addWidget(self.eventEdit)
+        self.prevToolTipIndexOfEventView = None
 
-        self.prevToolTipIndex = None
+        self.apiLogEdit = QPlainTextEdit()
+        self.apiLogEdit.setStyleSheet('QPlainTextEdit{font-size:%dpx;font-family:Consolas;}' % dpiSize(14))
+        self.tab.addTab(self.apiLogEdit, 'APILog')
 
     def appendOutputEditText(self, text: str) -> None:
-        self.codeDlg.outputEdit.appendPlainText(text)
+        self.apiLogEdit.appendPlainText(text)
 
     def onMouseEnterEventView(self, index: QModelIndex) -> None:
         if not self.eventTipCheck.isChecked():
@@ -999,9 +1038,9 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         index = index.siblingAtColumn(ColumnEventType)
         roomId = index.data(Qt.ItemDataRole.UserRole)
         index = index.siblingAtColumn(ColumnEventContent)
-        if index == self.prevToolTipIndex:
+        if index == self.prevToolTipIndexOfEventView:
             return
-        self.prevToolTipIndex = index
+        self.prevToolTipIndexOfEventView = index
         event = index.data(Qt.ItemDataRole.UserRole)
         QToolTip.hideText()
         if roomId:  # RTCRoom
@@ -1012,13 +1051,31 @@ class MainWindow(QMainWindow, astask.AsyncTask):
 
     def onEventViewContextMenu(self, pos) -> None:
         menu = QMenu(self)
+        action = menu.addAction('Copy')
+        action.triggered.connect(self.onActionCopyEventName)
         action = menu.addAction('Clear')
         action.triggered.connect(self.onActionClearEventView)
         menu.exec_(QCursor.pos())
 
+    def onActionCopyEventName(self) -> None:
+        index = self.eventView.currentIndex()
+        if index.isValid():
+            index = index.siblingAtColumn(ColumnEventType)
+            eventClass = index.data(Qt.ItemDataRole.DisplayRole)
+            roomId = index.data(Qt.ItemDataRole.UserRole)
+            index = index.siblingAtColumn(ColumnEventName)
+            eventName = index.data(Qt.ItemDataRole.DisplayRole)
+            index = index.siblingAtColumn(ColumnEventContent)
+            event = index.data(Qt.ItemDataRole.UserRole)
+            if roomId:
+                QApplication.clipboard().setText(f'room_id={roomId}\n{eventClass}.{eventName} {util.prettyDict(event)}')
+            else:
+                QApplication.clipboard().setText(f'{eventClass}.{eventName} {util.prettyDict(event)}')
+
     def onActionClearEventView(self) -> None:
         self.itemModel.removeRows(0, self.itemModel.rowCount())
         self.eventEdit.clear()
+        self.prevToolTipIndexOfEventView = None
 
     def onEventViewSelectionChanged(self, selection: QItemSelection) -> None:
         #print(type(selection), selection)
@@ -1026,17 +1083,19 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         if index.isValid():
             index = index.siblingAtColumn(ColumnEventType)
             roomId = index.data(Qt.ItemDataRole.UserRole)
-            index = self.eventView.currentIndex().siblingAtColumn(ColumnEventName)
+            index = index.siblingAtColumn(ColumnEventName)
             eventName = index.data(Qt.ItemDataRole.DisplayRole)
-            index = self.eventView.currentIndex().siblingAtColumn(ColumnEventContent)
+            index = index.siblingAtColumn(ColumnEventContent)
             event = index.data(Qt.ItemDataRole.UserRole)
-            curPos = self.eventEdit.verticalScrollBar().value()
+            curHPos = self.eventEdit.horizontalScrollBar().value()
+            curVPos = self.eventEdit.verticalScrollBar().value()
             if roomId:  # RTCRoom
                 self.eventEdit.setPlainText(f'room_id: {roomId}\n{util.prettyDict(event)}')
             else:  # RTCVideo
                 self.eventEdit.setPlainText(util.prettyDict(event))
             if self.prevShowEventName == eventName:
-                self.eventEdit.verticalScrollBar().setValue(curPos)
+                self.eventEdit.horizontalScrollBar().setValue(curHPos)
+                self.eventEdit.verticalScrollBar().setValue(curVPos)
             self.prevShowEventName = eventName
         else:
             self.eventEdit.clear()
@@ -1045,6 +1104,10 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         syntax = QRegExp.PatternSyntax(QRegExp.RegExp)
         regExp = QRegExp(self.eventNameFilterEdit.text(), Qt.CaseInsensitive, syntax)
         self.proxyModel.setFilterRegExp(regExp)
+
+    def onTabSelectionChanged(self, index: int) -> None:
+        if index < 0:
+            return
 
     def initUI(self) -> None:
         for app in self.configJson['appNameList']:
@@ -1314,13 +1377,14 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         sdk.setEnv(env)
 
     def onClickCreateRtcVideoBtn(self) -> None:
-        if self.rtcVideo and self.rtcVideo.IRTCVideo:
+        if self.rtcVideo:
             return
         appInfo = self.configJson['appNameList'][self.appNameCombox.currentIndex()]
         self.rtcVideo = sdk.RTCVideo(app_id=appInfo['appId'], event_handler=self, parameters='{"testKey": "testValue"}')
         self.setWindowTitle(f'{DemoTitle}, {sdk.SdkVersion}, version: {sdk.getVersion()}, APILog: bytesdklog/{sdk.APILogPath}')
         if self.cloudProxyCheck.isChecked():
             self.onClickCloudProxyCheck()
+        self.rtcVideo.registerVideoFrameObserver(self.rtcVideo.pVideoFrameObserver)
 
     def onClickDestroyRtcVideoBtn(self) -> None:
         self.stopPushFrames()
@@ -1331,6 +1395,7 @@ class MainWindow(QMainWindow, astask.AsyncTask):
             self.onClickLeaveRoomBtn()
             self.onClickDestroyRoomBtn()
         if self.rtcVideo:
+            self.adm = None
             self.vdm = None
             self.videoEffect = None
             self.rtcVideo.destroy()
@@ -1344,6 +1409,54 @@ class MainWindow(QMainWindow, astask.AsyncTask):
     def onClickStopAudioCaptureBtn(self) -> None:
         if self.rtcVideo:
             self.rtcVideo.stopAudioCapture()
+
+    def onClickADMCaptureBtn(self) -> None:
+        if not self.rtcVideo:
+            return
+        if not self.adm:
+            self.adm = self.rtcVideo.getAudioDeviceManager()
+        if not self.adm:
+            self.tipDlg.showTip('getAudioDeviceManager returns None')
+            return
+        deviceList = self.adm.enumerateAudioCaptureDevices2()
+        self.admActions = []
+        menu = QMenu(self)
+        for deviceInfo in deviceList:
+            action = QAction(deviceInfo.device_name)
+            action.setData(deviceInfo.device_id)
+            action.triggered.connect(self.onActionSetAudioCaptureDevice)
+            self.admActions.append(action)
+            menu.addAction(action)
+        menu.exec_(QCursor.pos())
+
+    def onClickADMPlaybackBtn(self) -> None:
+        if not self.rtcVideo:
+            return
+        if not self.adm:
+            self.adm = self.rtcVideo.getAudioDeviceManager()
+        if not self.adm:
+            self.tipDlg.showTip('getAudioDeviceManager returns None')
+            return
+        deviceList = self.adm.enumerateAudioPlaybackDevices2()
+        self.admActions = []
+        menu = QMenu(self)
+        for deviceInfo in deviceList:
+            action = QAction(deviceInfo.device_name)
+            action.setData(deviceInfo.device_id)
+            action.triggered.connect(self.onActionSetAudioPlaybackDevice)
+            self.admActions.append(action)
+            menu.addAction(action)
+        menu.exec_(QCursor.pos())
+
+    def onActionSetAudioCaptureDevice(self) -> None:
+        action = self.sender()
+        if action and self.adm:
+            self.adm.setAudioCaptureDevice(action.data())
+
+    def onActionSetAudioPlaybackDevice(self) -> None:
+        action = self.sender()
+        if action and self.adm:
+            self.adm.setAudioPlaybackDevice(action.data())
 
     def onComboxResolutionSelectionChanged(self) -> None:
         curText = self.resolutionCombox.currentText()
@@ -1392,8 +1505,10 @@ class MainWindow(QMainWindow, astask.AsyncTask):
     def onClickVDMBtn(self) -> None:
         if not self.rtcVideo:
             return
-        self.vdm = self.rtcVideo.getVideoDeviceManager()
         if not self.vdm:
+            self.vdm = self.rtcVideo.getVideoDeviceManager()
+        if not self.vdm:
+            self.tipDlg.showTip('getVideoDeviceManager returns None')
             return
         deviceList = self.vdm.enumerateVideoCaptureDevices2()
         self.vdmActions = []
@@ -1574,6 +1689,30 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         if self.roomIdCombox.count() == 0:
             self.roomIdCombox.setCurrentText(roomId)
 
+    def onClickSaveLocalStreamCheck(self) -> None:
+        if not self.rtcVideo:
+            return
+        check = self.sender()
+        self.rtcVideo.saveVideoFrameObserverFrame(sdk.SaveFrameType.LocalVideoFrame, check.isChecked(), 2, 100)
+
+    def onClickSaveRemoteStreamCheck(self) -> None:
+        if not self.rtcVideo:
+            return
+        check = self.sender()
+        self.rtcVideo.saveVideoFrameObserverFrame(sdk.SaveFrameType.RemoteVideoFrame, check.isChecked(), 2, 100)
+
+    def onClickSaveLocalScreenCheck(self) -> None:
+        if not self.rtcVideo:
+            return
+        check = self.sender()
+        self.rtcVideo.saveVideoFrameObserverFrame(sdk.SaveFrameType.LocalScreenFrame, check.isChecked(), 2, 100)
+
+    def onClickSaveRemoteScreenCheck(self) -> None:
+        if not self.rtcVideo:
+            return
+        check = self.sender()
+        self.rtcVideo.saveVideoFrameObserverFrame(sdk.SaveFrameType.RemoteScreenFrame, check.isChecked(), 2, 100)
+
     def startPushFrames(self) -> None:
         if self.pushTaskId > 0:
             return
@@ -1630,7 +1769,7 @@ class MainWindow(QMainWindow, astask.AsyncTask):
             font = painter.font()
             font.setFamilies(['微软雅黑', '黑体', 'Sans-Serif'])
             font.setBold(True)
-            font.setPointSize(int(font.pointSize() * videoWidth / 360))
+            font.setPointSize(int(font.pointSize() * videoWidth / 400))
             painter.setFont(font)
             painter.fillRect(0, 0, videoWidth, videoHeight, QColor(204, 232, 207))
             qpen = QPen(QColor(255, 0, 0), 4, Qt.SolidLine)
@@ -1695,7 +1834,7 @@ class MainWindow(QMainWindow, astask.AsyncTask):
             videoFrame.pFrame = None
             pushFrameCount += 1
             waitTime = (pushFrameCount + 1) / fps - (now - pushStartTick)
-            #print(f'{pushFrameCount} {fps} e {elapsed:.3f} w {waitTime:.3f}')
+            print(f'{pushFrameCount} {fps} e {elapsed:.3f} w {waitTime:.3f}')
             if waitTime < 0:
                 waitTime = 0
 

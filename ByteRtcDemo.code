@@ -50,6 +50,19 @@ self.rtcVideo.startVideoCapture()
 
 ----boundary----
 
+name=RtcVideo.saveVideoFrameObserverFrame
+code=
+
+saveFrameType = sdk.SaveFrameType.LocalVideoFrame
+#saveFrameType = sdk.SaveFrameType.LocalScreenFrame
+#saveFrameType = sdk.SaveFrameType.RemoteVideoFrame
+#saveFrameType = sdk.SaveFrameType.RemoteScreenFrame
+#saveFrameType = sdk.SaveFrameType.MergeFrame
+self.rtcVideo.saveVideoFrameObserverFrame(frameType = saveFrameType, save = True, fileCount=2, frameCount=100)
+#self.delayCall(timeMs=6000, func=self.rtcVideo.saveVideoFrameObserverFrame, frameType = saveFrameType, save = False, fileCount=2, frameCount=100)
+
+----boundary----
+
 name=RtcVideo.enableSimulcastMode
 code=
 

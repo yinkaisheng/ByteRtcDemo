@@ -1,4 +1,4 @@
-#下面所有代码在MainWindow中的上下文执行
+#下面所有代码在MainWindow.execCode()中执行
 def publishExternalVideoStreamTest(self):
     index = self.envCombox.currentIndex()
     if index >= 0:
@@ -19,6 +19,7 @@ def publishExternalVideoStreamTest(self):
         self.onClickCloudProxyCheck()
     #self.rtcVideo.startCloudProxy([('10.37.144.157', 6779)])
 
+    self.rtcVideo.registerVideoFrameObserver(self.rtcVideo.pVideoFrameObserver)
     self.rtcVideo.enableSimulcastMode(True)
     self.rtcVideo.startAudioCapture()
 
