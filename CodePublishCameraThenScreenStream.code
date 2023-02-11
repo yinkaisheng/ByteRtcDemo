@@ -19,7 +19,9 @@ def publishExternalVideoStreamTest(self, cameraIndex: int):
         self.onClickCloudProxyCheck()
     #self.rtcVideo.startCloudProxy([('10.37.144.157', 6779)])
 
-    self.rtcVideo.registerVideoFrameObserver(self.rtcVideo.pVideoFrameObserver)
+    self.rtcVideo.registerVideoFrameObserver(True)
+    self.rtcVideo.registerLocalEncodedVideoFrameObserver(True)
+    self.rtcVideo.registerRemoteEncodedVideoFrameObserver(True)
     self.rtcVideo.enableSimulcastMode(True)
     self.rtcVideo.startAudioCapture()
 
@@ -63,9 +65,10 @@ def publishExternalVideoStreamTest(self, cameraIndex: int):
     renderMode = sdk.RenderMode.Fit     #2
     #renderMode = sdk.RenderMode.Fill    #3
     videoCanvas = sdk.VideoCanvas(view=viewHandle, render_mode=renderMode, background_color=0x000000)
-    index = sdk.StreamIndex.Main    #0
-    #index = sdk.StreamIndex.Screen #1
-    self.rtcVideo.setLocalVideoCanvas(index, videoCanvas)
+    streamIndex = sdk.StreamIndex.Main    #0
+    #streamIndex = sdk.StreamIndex.Screen #1
+    self.rtcVideo.setLocalVideoCanvas(streamIndex, videoCanvas)
+    self.viewIndex2StreamKey[0] = streamIndex
 
     #选择摄像头
     self.vdm = self.rtcVideo.getVideoDeviceManager()
@@ -181,9 +184,10 @@ def onConnectionStateChanged(self, event_time: int, event_name: str, event_json:
                 renderMode = sdk.RenderMode.Fit     #2
                 #renderMode = sdk.RenderMode.Fill    #3
                 videoCanvas = sdk.VideoCanvas(view=viewHandle, render_mode=renderMode, background_color=0x000000)
-                #index = sdk.StreamIndex.Main    #0
-                index = sdk.StreamIndex.Screen #1
-                self.rtcVideo.setLocalVideoCanvas(index, videoCanvas)
+                #streamIndex = sdk.StreamIndex.Main    #0
+                streamIndex = sdk.StreamIndex.Screen #1
+                self.rtcVideo.setLocalVideoCanvas(streamIndex, videoCanvas)
+                self.viewIndex2StreamKey[0] = streamIndex
 
                 captureParam = sdk.ScreenCaptureParameters()
                 captureParam.capture_mouse_cursor = True

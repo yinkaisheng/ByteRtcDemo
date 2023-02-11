@@ -41,7 +41,7 @@ ButtonHeight = 28
 ComboxHeight = ButtonHeight - 2
 ComboxItemHeight = ComboxHeight - 2
 EditHeight = ButtonHeight - 2
-DemoTitle = 'ByteRtcDemo'
+DemoTitle = f'ByteRtcDemo(pid {os.getpid()})'
 IcoPath = os.path.join(sdk.ExeDir, 'volcengine.ico')
 RtcVideo = None
 DevelopDllDir = ''
@@ -60,7 +60,7 @@ class SelectSdkDlg(QDialog):
         super(SelectSdkDlg, self).__init__(parent)
         self.setWindowFlags(Qt.Dialog | Qt.WindowCloseButtonHint | Qt.WindowStaysOnTopHint)
         isX64 = sys.maxsize > 0xFFFFFFFF
-        bit = 2 if isX64 else 1
+        bits = 64 if isX64 else 32
         self.setWindowTitle(f'Select SDK Version')
         # self.setAttribute(Qt.WA_DeleteOnClose)
         self.resize(dpiSize(300), dpiSize(200))
@@ -69,7 +69,7 @@ class SelectSdkDlg(QDialog):
         vLayout = QVBoxLayout()
         self.setLayout(vLayout)
 
-        tipLabel = QLabel(f'App is {32 * bit} bit, select a SDK:')
+        tipLabel = QLabel(f'App is {bits} bit, select a SDK:')
         vLayout.addWidget(tipLabel)
         self.radioButtons = []
         self.sdkDirs = {}
@@ -396,14 +396,15 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         configExJson = util.jsonFromFile(f'{self.configPath}Ex')    #save appid to configex, it's not in git
         self.configJson.update(configExJson)
         self.videoLabels = []
-        self.viewUsingIndex = set()
+        self.remoteViewStartIndex = 1
+        self.viewUsingIndex = set() # does not have local view, starts with self.remoteViewStartIndex
         self.viewCount = 0
-        self.uid2ViewIndex = {}  # does not have key 0, local uid is the real uid when join successfully
+        self.remoteUid2ViewIndex = {}  # does not have key 0
+        self.viewIndex2StreamKey = {}   #key: int, value: StreamIndex or RemoteStreamKey
         self.clearViewIndexs = []
         self.maximizedVideoLabelIndex = -1
         self.menuShowOnVideoLableIndex = -1
         self.mousePressOnVideoLabelIndex = -1
-        self.remoteViewStartIndex = 1
         self.captureSourceList = []
         self.createUI()
         self.initUI()
@@ -839,6 +840,7 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         hLayout.addWidget(self.subscribeStreamUserCombox)
         self.subscribeStreamMediaStreamTypeCombox = QComboBox()
         self.subscribeStreamMediaStreamTypeCombox.setMinimumHeight(dpiSize(ComboxHeight))
+        #self.subscribeStreamMediaStreamTypeCombox.setMaximumWidth(dpiSize(70))
         self.subscribeStreamMediaStreamTypeCombox.setToolTip("MediaStreamType")
         self.subscribeStreamMediaStreamTypeCombox.setStyleSheet('QAbstractItemView::item {height: %dpx;}' % dpiSize(ComboxItemHeight))
         self.subscribeStreamMediaStreamTypeCombox.setView(QListView())
@@ -867,6 +869,7 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         hLayout.addWidget(self.subscribeScreenUserCombox)
         self.subscribeScreenMediaStreamTypeCombox = QComboBox()
         self.subscribeScreenMediaStreamTypeCombox.setMinimumHeight(dpiSize(ComboxHeight))
+        #self.subscribeScreenMediaStreamTypeCombox.setMaximumWidth(dpiSize(70))
         self.subscribeScreenMediaStreamTypeCombox.setToolTip("MediaStreamType")
         self.subscribeScreenMediaStreamTypeCombox.setStyleSheet('QAbstractItemView::item {height: %dpx;}' % dpiSize(ComboxItemHeight))
         self.subscribeScreenMediaStreamTypeCombox.setView(QListView())
@@ -878,13 +881,31 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         # ----
         hLayout = QHBoxLayout()
         vLayout.addLayout(hLayout)
-        saveLocalStreamCheck = QCheckBox('saveLocalStream')
+        saveLocalEncodedStreamCheck = QCheckBox('saveLocalEncodedVStream')
+        saveLocalEncodedStreamCheck.setMinimumHeight(dpiSize(ButtonHeight))
+        saveLocalEncodedStreamCheck.setToolTip('ILocalEncodedVideoFrameObserver::onLocalEncodedVideoFrame')
+        saveLocalEncodedStreamCheck.clicked.connect(self.onClickSaveLocalEncodedStreamCheck)
+        hLayout.addWidget(saveLocalEncodedStreamCheck)
+        saveRemoteEncodedStreamCheck = QCheckBox('saveRemoteEncodedVStream')
+        saveRemoteEncodedStreamCheck.setMinimumHeight(dpiSize(ButtonHeight))
+        saveRemoteEncodedStreamCheck.setToolTip('IRemoteEncodedVideoFrameObserver::onRemoteEncodedVideoFrame')
+        saveRemoteEncodedStreamCheck.clicked.connect(self.onClickSaveRemoteEncodedStreamCheck)
+        hLayout.addWidget(saveRemoteEncodedStreamCheck)
+
+        # ----
+        hLayout = QHBoxLayout()
+        vLayout.addLayout(hLayout)
+        saveLocalStreamCheck = QCheckBox('saveLocalVStream')
         saveLocalStreamCheck.setMinimumHeight(dpiSize(ButtonHeight))
+        saveLocalStreamCheck.setToolTip('IVideoFrameObserver::onLocalVideoFrame')
         saveLocalStreamCheck.clicked.connect(self.onClickSaveLocalStreamCheck)
         hLayout.addWidget(saveLocalStreamCheck)
-        saveRemoteStreamCheck = QCheckBox('saveRemoteStream')
+        saveRemoteStreamCheck = QCheckBox('saveRemoteVStream')
         saveRemoteStreamCheck.setMinimumHeight(dpiSize(ButtonHeight))
+        saveRemoteStreamCheck.setToolTip('IVideoFrameObserver::onRemoteVideoFrame')
+        saveLocalStreamCheck.clicked.connect(self.onClickSaveRemoteStreamCheck)
         hLayout.addWidget(saveRemoteStreamCheck)
+        hLayout.addStretch(1)
         frameCountLabel = QLabel('  FrameCount:')
         hLayout.addWidget(frameCountLabel)
         self.saveStreamFrameCountEdit = QLineEdit(f'{self.configJson["saveStreamFrameCount"]}')
@@ -896,12 +917,17 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         # ----
         hLayout = QHBoxLayout()
         vLayout.addLayout(hLayout)
-        saveLocalScreenCheck = QCheckBox('saveLocalScreen')
+        saveLocalScreenCheck = QCheckBox('saveLocalVScreen')
         saveLocalScreenCheck.setMinimumHeight(dpiSize(ButtonHeight))
+        saveLocalScreenCheck.setToolTip('IVideoFrameObserver::onLocalScreenFrame')
+        saveLocalScreenCheck.clicked.connect(self.onClickSaveLocalScreenCheck)
         hLayout.addWidget(saveLocalScreenCheck)
-        saveRemoteScreenCheck = QCheckBox('saveRemoteScreen')
+        saveRemoteScreenCheck = QCheckBox('saveRemoteVScreen')
         saveRemoteScreenCheck.setMinimumHeight(dpiSize(ButtonHeight))
+        saveRemoteScreenCheck.setToolTip('IVideoFrameObserver::onRemoteScreenFrame')
+        saveRemoteScreenCheck.clicked.connect(self.onClickSaveRemoteScreenCheck)
         hLayout.addWidget(saveRemoteScreenCheck)
+        hLayout.addStretch(1)
         frameCountLabel = QLabel('  FrameCount:')
         hLayout.addWidget(frameCountLabel)
         self.saveScreenFrameCountEdit = QLineEdit(f'{self.configJson["saveScreenFrameCount"]}')
@@ -957,8 +983,12 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         self.videoGridLayout = None
         self.onComboxLayoutSelectionChanged(self.layoutCombox.currentIndex())
 
-        self.copyViewHandleAction = QAction('Copy View Handle', self)
+        self.copyViewHandleAction = QAction('Copy View Handle')
         self.copyViewHandleAction.triggered.connect(self.onActionCopyViewHandle)
+        self.snapshotAction = QAction('Snapshot')
+        self.snapshotAction.triggered.connect(self.onActionSnapshot)
+        self.mirrorAction = QAction('Mirror')
+        self.mirrorAction.triggered.connect(self.onActionMirror)
 
         eventNameLabel = QLabel('EventNameFilter:')
         hLayout.addWidget(eventNameLabel)
@@ -1213,8 +1243,14 @@ class MainWindow(QMainWindow, astask.AsyncTask):
 
     def onVideoLabelRightMenu(self, index: int) -> None:
         menu = QMenu(self)
-        self.copyViewHandleAction.setText(f'Copy view handle 0x{int(self.videoLabels[index].winId()):X}')
+        viewValue = int(self.videoLabels[index].winId())
+        self.copyViewHandleAction.setText(f'Copy view handle 0x{viewValue:X}({viewValue})')
+        self.copyViewHandleAction.setData(viewValue)
         menu.addAction(self.copyViewHandleAction)
+        streamKey = self.viewIndex2StreamKey.get(index, None)
+        if streamKey != None:
+            self.snapshotAction.setData(streamKey)
+            menu.addAction(self.snapshotAction)
 
         self.menuShowOnVideoLableIndex = index  # must before menu.exec_
         menu.exec_(QCursor.pos())
@@ -1254,6 +1290,17 @@ class MainWindow(QMainWindow, astask.AsyncTask):
     def onActionCopyViewHandle(self) -> None:
         strViewHandle = self.copyViewHandleAction.text().split()[-1]
         QApplication.clipboard().setText(strViewHandle)
+
+    def onActionSnapshot(self) -> None:
+        action = self.sender()
+        streamKey = action.data()
+        if isinstance(streamKey, sdk.RemoteStreamKey):
+            self.rtcVideo.takeRemoteSnapshot(streamKey)
+        elif isinstance(streamKey, sdk.StreamIndex):
+            self.rtcVideo.takeLocalSnapshot(streamKey)
+
+    def onActionMirror(self) -> None:
+        pass
 
     def resetViewsBackground(self, index: List[int]) -> None:
         self.clearViewIndexs.extend(index)
@@ -1384,7 +1431,9 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         self.setWindowTitle(f'{DemoTitle}, {sdk.SdkVersion}, version: {sdk.getVersion()}, APILog: bytesdklog/{sdk.APILogPath}')
         if self.cloudProxyCheck.isChecked():
             self.onClickCloudProxyCheck()
-        self.rtcVideo.registerVideoFrameObserver(self.rtcVideo.pVideoFrameObserver)
+        self.rtcVideo.registerVideoFrameObserver(True)
+        self.rtcVideo.registerLocalEncodedVideoFrameObserver(True)
+        self.rtcVideo.registerRemoteEncodedVideoFrameObserver(True)
 
     def onClickDestroyRtcVideoBtn(self) -> None:
         self.stopPushFrames()
@@ -1401,6 +1450,7 @@ class MainWindow(QMainWindow, astask.AsyncTask):
             self.rtcVideo.destroy()
             self.rtcVideo = None
             self.setWindowTitle(f'{DemoTitle}, {sdk.SdkVersion}')
+        self.viewIndex2StreamKey = {}
 
     def onClickStartAudioCaptureBtn(self) -> None:
         if self.rtcVideo:
@@ -1501,6 +1551,10 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         videoCanvas = sdk.VideoCanvas(view=viewHandle, render_mode=sdk.RenderMode.Fit, background_color=0x000000)
         streamIndex = sdk.StreamIndex(int(self.localStreamIndexCombox.currentText()[-1]))
         self.rtcVideo.setLocalVideoCanvas(index=streamIndex, canvas=videoCanvas)
+        for i in range(self.remoteViewStartIndex):
+            view = self.videoLabels[i]
+            if viewHandle == int(view.winId()):
+                self.viewIndex2StreamKey[i] = streamIndex
 
     def onClickVDMBtn(self) -> None:
         if not self.rtcVideo:
@@ -1590,7 +1644,7 @@ class MainWindow(QMainWindow, astask.AsyncTask):
             userTokens = self.configJson['appNameList'][self.configJson['appNameIndex']].get(roomId, None)
             if userTokens:
                 token = userTokens.get(userId, '')
-        userInfo = sdk.UserInfo(uid=userId, extra_info='{"nickName":"yks"}')
+        userInfo = sdk.UserInfo(uid=userId, extra_info='{"nickName":"%s"}' % self.configJson['nickName'])
         roomConfig = sdk.RTCRoomConfig(room_profile_type=sdk.RoomProfileType.LiveBroadcasting)
         roomConfig.is_auto_publish = self.autoPublishCheck.isChecked()
         roomConfig.is_auto_subscribe_audio = self.autoSubscribeAudioCheck.isChecked()
@@ -1672,10 +1726,14 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         self.rtcRooms[roomId].leaveRoom()
         self.rtcRoomUsers[roomId].clear()
         self.resetViewsBackground(range(self.viewCount))    # todo
-        self.uid2ViewIndex.clear()
+        self.remoteUid2ViewIndex.clear()
         self.viewUsingIndex.clear()
         self.subscribeStreamUserCombox.clear()
         self.subscribeScreenUserCombox.clear()
+        for i in range(self.viewCount):
+            streamKey = self.viewIndex2StreamKey.get(i, None)
+            if isinstance(streamKey, sdk.RemoteStreamKey):
+                self.viewIndex2StreamKey.pop(i)
 
     def onClickDestroyRoomBtn(self) -> None:
         roomId = self.roomIdCombox.currentText().strip()
@@ -1688,6 +1746,18 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         self.roomIdCombox.removeItem(self.roomIdCombox.currentIndex())
         if self.roomIdCombox.count() == 0:
             self.roomIdCombox.setCurrentText(roomId)
+
+    def onClickSaveLocalEncodedStreamCheck(self) -> None:
+        if not self.rtcVideo:
+            return
+        check = self.sender()
+        self.rtcVideo.saveLocalEncodedVideoFrame(check.isChecked())
+
+    def onClickSaveRemoteEncodedStreamCheck(self) -> None:
+        if not self.rtcVideo:
+            return
+        check = self.sender()
+        self.rtcVideo.saveRemoteEncodedVideoFrame(check.isChecked())
 
     def onClickSaveLocalStreamCheck(self) -> None:
         if not self.rtcVideo:
@@ -1769,7 +1839,7 @@ class MainWindow(QMainWindow, astask.AsyncTask):
             font = painter.font()
             font.setFamilies(['微软雅黑', '黑体', 'Sans-Serif'])
             font.setBold(True)
-            font.setPointSize(int(font.pointSize() * videoWidth / 400))
+            font.setPointSize(int(font.pointSize() * videoWidth / 450))
             painter.setFont(font)
             painter.fillRect(0, 0, videoWidth, videoHeight, QColor(204, 232, 207))
             qpen = QPen(QColor(255, 0, 0), 4, Qt.SolidLine)
@@ -1834,7 +1904,7 @@ class MainWindow(QMainWindow, astask.AsyncTask):
             videoFrame.pFrame = None
             pushFrameCount += 1
             waitTime = (pushFrameCount + 1) / fps - (now - pushStartTick)
-            print(f'{pushFrameCount} {fps} e {elapsed:.3f} w {waitTime:.3f}')
+            #print(f'{pushFrameCount} {fps} e {elapsed:.3f} w {waitTime:.3f}')
             if waitTime < 0:
                 waitTime = 0
 
@@ -1903,6 +1973,7 @@ class MainWindow(QMainWindow, astask.AsyncTask):
             # 'onWarning': self.onWarning,
             'onConnectionStateChanged': self.onConnectionStateChanged,
             'onTakeLocalSnapshotResult': self.onTakeLocalSnapshotResult,
+            'onTakeRemoteSnapshotResult': self.onTakeRemoteSnapshotResult,
         }
 
         self.RTCRoomEventHandler = {
@@ -1924,11 +1995,18 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         self.appendOutputEditText(f'onTakeLocalSnapshotResult IVideoFrame: {videoFrame.width()}x{videoFrame.height()},'
                                   f'format {videoFrame.pixelFormat()}, planes {videoFrame.numberOfPlanes()}, stride {videoFrame.getPlaneStride(0)}')
         try:
-            from PIL import Image
-            arrayType = (ctypes.c_uint8 * (videoFrame.getPlaneStride(0) * videoFrame.height()))
+            imagePath = f'localSnapshot.bmp'
+            width, height = videoFrame.width(), videoFrame.height()
+            stride = videoFrame.getPlaneStride(0)
+            arrayType = (ctypes.c_uint8 * (stride * height))
             frameBuf = arrayType.from_address(videoFrame.getPlaneData(0).value)
-            image = Image.frombytes('RGBA', (videoFrame.width(), videoFrame.height()), frameBuf, 'raw', 'BGRA')
-            image.save('localSnapshot.bmp')
+            qimg = QImage(frameBuf, width, height, stride, QImage.Format_ARGB32)
+            qimg.save(imagePath)
+            #from PIL import Image
+            #image = Image.frombytes('RGBA', (videoFrame.width(), videoFrame.height()), frameBuf, 'raw', 'BGRA')
+            #image.save(imagePath)
+            self.appendOutputEditText(f'snapshot path: {imagePath}')
+            subprocess.Popen(imagePath, shell=True)
         except Exception as ex:
             self.appendOutputEditText(str(ex))
         videoFrame.release()
@@ -1938,11 +2016,18 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         self.appendOutputEditText(f'onTakeRemoteSnapshotResult IVideoFrame: {videoFrame.width()}x{videoFrame.height()},'
                                   f'format {videoFrame.pixelFormat()}, planes {videoFrame.numberOfPlanes()}, stride {videoFrame.getPlaneStride(0)}')
         try:
-            from PIL import Image
-            arrayType = (ctypes.c_uint8 * (videoFrame.getPlaneStride(0) * videoFrame.height()))
+            imagePath = f'remoteSnapshot.bmp'
+            width, height = videoFrame.width(), videoFrame.height()
+            stride = videoFrame.getPlaneStride(0)
+            arrayType = (ctypes.c_uint8 * (stride * height))
             frameBuf = arrayType.from_address(videoFrame.getPlaneData(0).value)
-            image = Image.frombytes('RGBA', (videoFrame.width(), videoFrame.height()), frameBuf, 'raw', 'BGRA')
-            image.save('remoteSnapshot.bmp')
+            qimg = QImage(frameBuf, width, height, stride, QImage.Format_ARGB32)
+            qimg.save(imagePath)
+            #from PIL import Image
+            #image = Image.frombytes('RGBA', (videoFrame.width(), videoFrame.height()), frameBuf, 'raw', 'BGRA')
+            #image.save(imagePath)
+            self.appendOutputEditText(f'snapshot path: {imagePath}')
+            subprocess.Popen(imagePath, shell=True)
         except Exception as ex:
             self.appendOutputEditText(str(ex))
         videoFrame.release()
@@ -1977,13 +2062,13 @@ class MainWindow(QMainWindow, astask.AsyncTask):
                     self.subscribeScreenUserCombox.removeItem(i)
                     break
 
-        if userId in self.uid2ViewIndex:
-            for streamIndex, viewIndex in self.uid2ViewIndex[userId].items():
+        if userId in self.remoteUid2ViewIndex:
+            for streamIndex, viewIndex in self.remoteUid2ViewIndex[userId].items():
                 if viewIndex in self.viewUsingIndex:
                     self.videoLabels[viewIndex].setText('Remote')
                     self.viewUsingIndex.remove(viewIndex)
                     self.resetViewsBackground([viewIndex])
-            self.uid2ViewIndex.pop(userId)
+            self.remoteUid2ViewIndex.pop(userId)
 
     def onUserPublishStream(self, event_time: int, event_name: str, event_json: str, event: dict) -> None:
         if not self.rtcVideo:
@@ -2005,10 +2090,10 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         freeView, freeViewIndex = self.getFreeView()
         self.videoLabels[freeViewIndex].setText(f'Remote user_id {userId} Camera')
         self.viewUsingIndex.add(freeViewIndex)
-        if userId in self.uid2ViewIndex:
-            self.uid2ViewIndex[userId][sdk.StreamIndex.Main] = freeViewIndex
+        if userId in self.remoteUid2ViewIndex:
+            self.remoteUid2ViewIndex[userId][sdk.StreamIndex.Main] = freeViewIndex
         else:
-            self.uid2ViewIndex[userId] = {sdk.StreamIndex.Main: freeViewIndex}
+            self.remoteUid2ViewIndex[userId] = {sdk.StreamIndex.Main: freeViewIndex}
         roomId = self.currentEventRoomId
         #roomId = ''
         remoteStreamKey = sdk.RemoteStreamKey(room_id=roomId, user_id=userId, stream_index=sdk.StreamIndex.Main)
@@ -2017,6 +2102,7 @@ class MainWindow(QMainWindow, astask.AsyncTask):
             self.rtcVideo.setRemoteVideoCanvas(stream_key=remoteStreamKey, canvas=videoCanvas)
         else:
             self.rtcVideo.setRemoteStreamVideoCanvas(stream_key=remoteStreamKey, canvas=videoCanvas)
+        self.viewIndex2StreamKey[freeViewIndex] = remoteStreamKey
 
     def onUserUnpublishStream(self, event_time: int, event_name: str, event_json: str, event: dict) -> None:
         if not self.rtcVideo:
@@ -2033,13 +2119,17 @@ class MainWindow(QMainWindow, astask.AsyncTask):
             self.rtcVideo.setRemoteVideoCanvas(stream_key=remoteStreamKey, canvas=videoCanvas)
         else:
             self.rtcVideo.setRemoteStreamVideoCanvas(stream_key=remoteStreamKey, canvas=videoCanvas)
-        if userId in self.uid2ViewIndex:
-            if sdk.StreamIndex.Main in self.uid2ViewIndex[userId]:
-                viewIndex = self.uid2ViewIndex[userId].pop(sdk.StreamIndex.Main)
+        if userId in self.remoteUid2ViewIndex:
+            if sdk.StreamIndex.Main in self.remoteUid2ViewIndex[userId]:
+                viewIndex = self.remoteUid2ViewIndex[userId].pop(sdk.StreamIndex.Main)
                 if viewIndex in self.viewUsingIndex:
                     self.videoLabels[viewIndex].setText('Remote')
                     self.viewUsingIndex.remove(viewIndex)
                     self.resetViewsBackground([viewIndex])
+        for i in range(self.viewCount):
+            if remoteStreamKey == self.viewIndex2StreamKey.get(i, None):
+                self.viewIndex2StreamKey.pop(i)
+                break
 
     def onUserPublishScreen(self, event_time: int, event_name: str, event_json: str, event: dict) -> None:
         if not self.rtcVideo:
@@ -2061,16 +2151,17 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         freeView, freeViewIndex = self.getFreeView()
         self.videoLabels[freeViewIndex].setText(f'Remote user_id {userId} Screen')
         self.viewUsingIndex.add(freeViewIndex)
-        if userId in self.uid2ViewIndex:
-            self.uid2ViewIndex[userId][sdk.StreamIndex.Screen] = freeViewIndex
+        if userId in self.remoteUid2ViewIndex:
+            self.remoteUid2ViewIndex[userId][sdk.StreamIndex.Screen] = freeViewIndex
         else:
-            self.uid2ViewIndex[userId] = {sdk.StreamIndex.Screen: freeViewIndex}
+            self.remoteUid2ViewIndex[userId] = {sdk.StreamIndex.Screen: freeViewIndex}
         remoteStreamKey = sdk.RemoteStreamKey(room_id=self.currentEventRoomId, user_id=userId, stream_index=sdk.StreamIndex.Screen)
         videoCanvas = sdk.VideoCanvas(view=freeView, render_mode=sdk.RenderMode.Fit, background_color=0x000000)
         if sdk.SdkVersion >= '3.47':
             self.rtcVideo.setRemoteVideoCanvas(stream_key=remoteStreamKey, canvas=videoCanvas)
         else:
             self.rtcVideo.setRemoteStreamVideoCanvas(stream_key=remoteStreamKey, canvas=videoCanvas)
+        self.viewIndex2StreamKey[freeViewIndex] = remoteStreamKey
 
     def onUserUnpublishScreen(self, event_time: int, event_name: str, event_json: str, event: dict) -> None:
         if not self.rtcVideo:
@@ -2087,13 +2178,17 @@ class MainWindow(QMainWindow, astask.AsyncTask):
             self.rtcVideo.setRemoteVideoCanvas(stream_key=remoteStreamKey, canvas=videoCanvas)
         else:
             self.rtcVideo.setRemoteStreamVideoCanvas(stream_key=remoteStreamKey, canvas=videoCanvas)
-        if userId in self.uid2ViewIndex:
-            if sdk.StreamIndex.Screen in self.uid2ViewIndex[userId]:
-                viewIndex = self.uid2ViewIndex[userId].pop(sdk.StreamIndex.Screen)
+        if userId in self.remoteUid2ViewIndex:
+            if sdk.StreamIndex.Screen in self.remoteUid2ViewIndex[userId]:
+                viewIndex = self.remoteUid2ViewIndex[userId].pop(sdk.StreamIndex.Screen)
                 if viewIndex in self.viewUsingIndex:
                     self.videoLabels[viewIndex].setText('Remote')
                     self.viewUsingIndex.remove(viewIndex)
                     self.resetViewsBackground([viewIndex])
+        for i in range(self.viewCount):
+            if remoteStreamKey == self.viewIndex2StreamKey.get(i, None):
+                self.viewIndex2StreamKey.pop(i)
+                break
 
     def testFunc(self) -> None:
         pass
@@ -2142,6 +2237,7 @@ def _start():
 
 
 if __name__ == '__main__':
+    print(sys.executable)
     try:
         _start()
     except Exception as ex:

@@ -19,7 +19,9 @@ def noPublisTest(self):
         self.onClickCloudProxyCheck()
     #self.rtcVideo.startCloudProxy([('10.37.144.157', 6779)])
 
-    self.rtcVideo.registerVideoFrameObserver(self.rtcVideo.pVideoFrameObserver)
+    self.rtcVideo.registerVideoFrameObserver(True)
+    self.rtcVideo.registerLocalEncodedVideoFrameObserver(True)
+    self.rtcVideo.registerRemoteEncodedVideoFrameObserver(True)
 
 
 #给MainWindow动态添加方法

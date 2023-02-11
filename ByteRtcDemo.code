@@ -50,7 +50,7 @@ self.rtcVideo.startVideoCapture()
 
 ----boundary----
 
-name=RtcVideo.saveVideoFrameObserverFrame
+name=RtcVideo.saveVideoFrame
 code=
 
 saveFrameType = sdk.SaveFrameType.LocalVideoFrame
@@ -58,8 +58,8 @@ saveFrameType = sdk.SaveFrameType.LocalVideoFrame
 #saveFrameType = sdk.SaveFrameType.RemoteVideoFrame
 #saveFrameType = sdk.SaveFrameType.RemoteScreenFrame
 #saveFrameType = sdk.SaveFrameType.MergeFrame
-self.rtcVideo.saveVideoFrameObserverFrame(frameType = saveFrameType, save = True, fileCount=2, frameCount=100)
-#self.delayCall(timeMs=6000, func=self.rtcVideo.saveVideoFrameObserverFrame, frameType = saveFrameType, save = False, fileCount=2, frameCount=100)
+self.rtcVideo.saveVideoFrame(frameType = saveFrameType, save = True, fileCount=2, frameCount=100)
+#self.delayCall(timeMs=6000, func=self.rtcVideo.saveVideoFrame, frameType = saveFrameType, save = False, fileCount=2, frameCount=100)
 
 ----boundary----
 
@@ -213,6 +213,8 @@ def onTakeLocalSnapshotResult(self, event_time: int, event_name: str, event_json
         self.delayCall(timeMs=1000, func=self.rtcVideo.takeLocalSnapshot, stream_index=self.snapShotStreamIndex)
         #or
         #self.delayCall(timeMs=1000, func=lambda:self.rtcVideo.takeLocalSnapshot(stream_index=self.snapShotStreamIndex))
+    else:
+        self.snapshotCount = 1
 
 MainWindow.onTakeLocalSnapshotResult = onTakeLocalSnapshotResult
 self.RTCVideoEventHandler['onTakeLocalSnapshotResult'] = self.onTakeLocalSnapshotResult
@@ -252,6 +254,8 @@ def onTakeRemoteSnapshotResult(self, event_time: int, event_name: str, event_jso
     videoFrame.release()
     if self.snapshotCount < 2:
         self.delayCall(timeMs=1000, func=self.rtcVideo.takeRemoteSnapshot, stream_key=self.snapshotStreamKey)
+    else:
+        self.snapshotCount = 1
 
 MainWindow.onTakeRemoteSnapshotResult = onTakeRemoteSnapshotResult
 self.RTCVideoEventHandler['onTakeRemoteSnapshotResult'] = self.onTakeRemoteSnapshotResult
@@ -363,13 +367,13 @@ code=
 
 self.videoEffect = self.rtcVideo.getVideoEffectInterface()
 if self.videoEffect:
-    licensePath = os.path.join(sdk.SdkBinDirFull, '../effect.lic')
-    modelPath = os.path.join(sdk.SdkBinDirFull, '../cvlab/model')
-    imagePath = os.path.join(sdk.ExeDir, 'VirtualBackgourndImages/bg03.jpg')
+    licensePath = os.path.join(sdk.SdkBinDirFull, 'effect.lic')
+    modelPath = os.path.join(sdk.SdkBinDirFull, 'cvlab/model')
+    imagePath = os.path.join(sdk.ExeDir, 'VirtualBackgourndImages/office.jpg')
     ret = self.videoEffect.initCVResource(licensePath, modelPath)
     if ret == 0:
         ret = self.videoEffect.enableVideoEffect()
-        stickerPath = os.path.join(sdk.SdkBinDirFull, '../cvlab/ComposeMakeup/matting_bg')
+        stickerPath = os.path.join(sdk.SdkBinDirFull, 'cvlab/ComposeMakeup/matting_bg')
         virtualSource = sdk.VirtualBackgroundSource(source_type=sdk.VirtualBackgroundSourceType.Image,
                                                     source_color=0xFFFFFFFF, source_path=imagePath)
         ret = self.videoEffect.enableVirtualBackground(stickerPath, virtualSource)

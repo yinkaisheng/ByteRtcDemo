@@ -137,6 +137,8 @@ class _DllClient:
             self.dll.byte_createRTCVideoEventHandler.restype = ctypes.c_void_p
             self.dll.byte_createRTCRoomEventHandler.restype = ctypes.c_void_p
             self.dll.byte_createVideoFrameObserver.restype = ctypes.c_void_p
+            self.dll.byte_RTCVideo_registerLocalEncodedVideoFrameObserver.restype = ctypes.c_void_p
+            self.dll.byte_RTCVideo_registerRemoteEncodedVideoFrameObserver.restype = ctypes.c_void_p
             self.dll.byte_createRTCVideo.restype = ctypes.c_void_p
             self.dll.byte_getErrorDescription.restype = ctypes.c_char_p
             self.dll.byte_getSDKVersion.restype = ctypes.c_char_p
@@ -838,7 +840,7 @@ class VideoEncoderConfig:
 
     def __str__(self) -> str:
         return f'{self.__class__.__name__}(width={self.width}, height={self.height}, frameRate={self.frameRate}, maxBitrate={self.maxBitrate}'    \
-               f', encoderPreference={self.encoderPreference})'
+            f', encoderPreference={self.encoderPreference})'
 
     __repr__ = __str__
 
@@ -873,7 +875,7 @@ class ScreenVideoEncoderConfig:
 
     def __str__(self) -> str:
         return f'{self.__class__.__name__}(width={self.width}, height={self.height}, frameRate={self.frameRate}, maxBitrate={self.maxBitrate}'    \
-               f', minBitrate={self.minBitrate}, encoderPreference={self.encoderPreference})'
+            f', minBitrate={self.minBitrate}, encoderPreference={self.encoderPreference})'
 
     __repr__ = __str__
 
@@ -907,7 +909,7 @@ class VideoSolution:
 
     def __str__(self) -> str:
         return f'{self.__class__.__name__}(width={self.width}, height={self.height}, fps={self.fps}, max_send_kbps={self.max_send_kbps}'    \
-               f', encode_preference={self.encode_preference})'
+            f', encode_preference={self.encode_preference})'
 
     __repr__ = __str__
 
@@ -982,6 +984,9 @@ class RemoteStreamKey:
         self.room_id = room_id
         self.user_id = user_id
         self.stream_index = stream_index
+
+    def __eq__(self, other) -> bool:
+        return type(other) == type(self) and other.room_id == self.room_id and other.user_id == self.user_id and other.stream_index == self.stream_index
 
     def __str__(self) -> str:
         return f'{self.__class__.__name__}(room_id={self.room_id}, user_id={self.user_id}, stream_index={self.stream_index})'
@@ -1074,7 +1079,7 @@ class ScreenCaptureSourceInfo:
 
     def __str__(self) -> str:
         return f'{self.__class__.__name__}(type={self.type}, source_id={self.source_id}, source_name={self.source_name}'     \
-               f', application={self.application}, pid={self.pid}, primaryMonitor={self.primaryMonitor}, region_rect={self.region_rect})'
+            f', application={self.application}, pid={self.pid}, primaryMonitor={self.primaryMonitor}, region_rect={self.region_rect})'
 
     __repr__ = __str__
 
@@ -1161,7 +1166,7 @@ class ScreenCaptureParameters:
 
     def __str__(self) -> str:
         return f'{self.__class__.__name__}(content_hint={self.content_hint}, region_rect={self.region_rect}'    \
-               f', filter_config={self.filter_config}, highlight_config={self.highlight_config})'
+            f', filter_config={self.filter_config}, highlight_config={self.highlight_config})'
 
     __repr__ = __str__
 
@@ -1194,8 +1199,8 @@ class RTCRoomConfig:
 
     def __str__(self) -> str:
         return f'{self.__class__.__name__}(room_profile_type={self.room_profile_type}'  \
-               f', is_auto_publish={self.is_auto_publish}, is_auto_subscribe_video={self.is_auto_subscribe_video}'  \
-               f', remote_video_config={self.remote_video_config})'
+            f', is_auto_publish={self.is_auto_publish}, is_auto_subscribe_video={self.is_auto_subscribe_video}'  \
+            f', remote_video_config={self.remote_video_config})'
 
     __repr__ = __str__
 
@@ -1236,9 +1241,9 @@ class AudioDeviceInfo:
 
     def __str__(self) -> str:
         return f'{self.__class__.__name__}(device_id="{self.device_id}", device_name="{self.device_name}"' \
-               f', device_short_name="{self.device_short_name}", device_container_id={self.device_container_id}' \
-               f', device_vid={self.device_vid}, device_pid={self.device_pid}, transport_type={self.transport_type}' \
-               f', volume_settable={self.volume_settable}, is_system_default={self.is_system_default}'
+            f', device_short_name="{self.device_short_name}", device_container_id={self.device_container_id}' \
+            f', device_vid={self.device_vid}, device_pid={self.device_pid}, transport_type={self.transport_type}' \
+            f', volume_settable={self.volume_settable}, is_system_default={self.is_system_default}'
 
     __repr__ = __str__
 
@@ -1278,7 +1283,7 @@ class VideoDeviceInfo:
 
     def __str__(self) -> str:
         return f'{self.__class__.__name__}(device_id="{self.device_id}", device_name="{self.device_name}"' \
-               f', device_vid={self.device_vid}, device_pid={self.device_pid}, transport_type={self.transport_type})'
+            f', device_vid={self.device_vid}, device_pid={self.device_pid}, transport_type={self.transport_type})'
 
     __repr__ = __str__
 
@@ -1375,7 +1380,7 @@ class VirtualBackgroundSource:
 
     def __str__(self) -> str:
         return f'{self.__class__.__name__}(source_type={self.source_type}'  \
-               f', source_color={self.source_color}, source_path={self.source_path})'
+            f', source_color={self.source_color}, source_path={self.source_path})'
 
     __repr__ = __str__
 
@@ -1955,6 +1960,10 @@ class RTCVideo:
         self.pIRTCVideo = ctypes.c_void_p(self.IRTCVideo)
         self.videoFrameObserver = self.dll.byte_createVideoFrameObserver()
         self.pVideoFrameObserver = ctypes.c_void_p(self.videoFrameObserver)
+        self.localVideoEncodedFrameObserver = self.dll.byte_createLocalEncodedVideoFrameObserver()
+        self.pLocalVideoEncodedFrameObserver = ctypes.c_void_p(self.localVideoEncodedFrameObserver)
+        self.remoteVideoEncodedFrameObserver = self.dll.byte_createRemoteEncodedVideoFrameObserver()
+        self.pRemoteVideoEncodedFrameObserver = ctypes.c_void_p(self.remoteVideoEncodedFrameObserver)
         self.version = getVersion()
         lineLen = 60
         log.info('\n\n{0}\n|{1:^{middleLen}}|\n{0}\n'.format(
@@ -1995,6 +2004,14 @@ class RTCVideo:
             self.dll.byte_deleteVideoFrameObserver(self.pVideoFrameObserver)
             self.videoFrameObserver = 0
             self.pVideoFrameObserver = None
+        if self.localVideoEncodedFrameObserver:
+            self.dll.byte_deleteLocalEncodedVideoFrameObserver(self.pLocalVideoEncodedFrameObserver)
+            self.localVideoEncodedFrameObserver = 0
+            self.pLocalVideoEncodedFrameObserver = None
+        if self.remoteVideoEncodedFrameObserver:
+            self.dll.byte_deleteRemoteEncodedVideoFrameObserver(self.pRemoteVideoEncodedFrameObserver)
+            self.remoteVideoEncodedFrameObserver = 0
+            self.pRemoteVideoEncodedFrameObserver = None
 
     @ APITime
     def startCloudProxy(self, proxies: List[Tuple[str, int]]) -> None:
@@ -2011,16 +2028,40 @@ class RTCVideo:
         self.dll.byte_RTCVideo_stopCloudProxy(self.pIRTCVideo)
 
     @ APITime
-    def registerVideoFrameObserver(self, videoFrameObserver: ctypes.c_void_p) -> None:
+    def registerVideoFrameObserver(self, register: bool) -> None:
         if not self.pIRTCVideo:
             return
-        self.dll.byte_RTCVideo_registerVideoFrameObserver(self.pIRTCVideo, videoFrameObserver)
+        self.dll.byte_RTCVideo_registerVideoFrameObserver(self.pIRTCVideo, self.pVideoFrameObserver if register else 0)
 
     @ APITime
-    def saveVideoFrameObserverFrame(self, frameType: SaveFrameType, save: bool, fileCount: int, frameCount: int) -> None:
+    def saveVideoFrame(self, frameType: SaveFrameType, save: bool, fileCount: int, frameCount: int) -> None:
         if not self.pIRTCVideo:
             return
         self.dll.byte_VideoFrameObserver_saveFrame(self.pVideoFrameObserver, frameType, int(save), fileCount, frameCount)
+
+    @ APITime
+    def registerLocalEncodedVideoFrameObserver(self, register: bool) -> None:
+        if not self.pIRTCVideo:
+            return
+        self.dll.byte_RTCVideo_registerLocalEncodedVideoFrameObserver(self.pIRTCVideo, self.pLocalVideoEncodedFrameObserver if register else 0)
+
+    @ APITime
+    def saveLocalEncodedVideoFrame(self, save: bool) -> None:
+        if not self.pIRTCVideo:
+            return
+        self.dll.byte_LocalEncodedVideoFrameObserver_saveFrame(self.pLocalVideoEncodedFrameObserver, int(save))
+
+    @ APITime
+    def registerRemoteEncodedVideoFrameObserver(self, register: bool) -> None:
+        if not self.pIRTCVideo:
+            return
+        self.dll.byte_RTCVideo_registerRemoteEncodedVideoFrameObserver(self.pIRTCVideo, self.pRemoteVideoEncodedFrameObserver if register else 0)
+
+    @ APITime
+    def saveRemoteEncodedVideoFrame(self, save: bool) -> None:
+        if not self.pIRTCVideo:
+            return
+        self.dll.byte_RemoteEncodedVideoFrameObserver_saveFrame(self.pRemoteVideoEncodedFrameObserver, int(save))
 
     @ APITime
     def setLocalVideoCanvas(self, index: StreamIndex, canvas: VideoCanvas) -> int:
