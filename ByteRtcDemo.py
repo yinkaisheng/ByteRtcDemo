@@ -399,8 +399,8 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         self.remoteViewStartIndex = 1
         self.viewUsingIndex = set() # does not have local view, starts with self.remoteViewStartIndex
         self.viewCount = 0
-        self.remoteUid2ViewIndex = {}  # does not have key 0
-        self.viewIndex2StreamKey = {}   #key: int, value: StreamIndex or RemoteStreamKey
+        self.remoteUid2ViewIndex = {}  # tuple(roomId, userId) : dict{StreamIndex: viewIndex}, only remote
+        self.viewIndex2StreamKey = {}   #key: int, value: StreamIndex or RemoteStreamKey, contains local and remote
         self.clearViewIndexs = []
         self.maximizedVideoLabelIndex = -1
         self.menuShowOnVideoLableIndex = -1
@@ -690,10 +690,18 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         self.localStreamIndexCombox.setCurrentIndex(0)
         hLayout.addWidget(self.localStreamIndexCombox)
         self.localViewEdit = QLineEdit()
-        self.localViewEdit.setMaximumWidth(dpiSize(120))
+        self.localViewEdit.setMaximumWidth(dpiSize(80))
         self.localViewEdit.setMinimumHeight(dpiSize(ButtonHeight))
         self.localViewEdit.setToolTip('Local View Handle')
         hLayout.addWidget(self.localViewEdit)
+        self.renderModeCombox = QComboBox()
+        self.renderModeCombox.setMinimumHeight(dpiSize(ComboxHeight))
+        self.renderModeCombox.setToolTip("RenderMode")
+        self.renderModeCombox.setStyleSheet('QAbstractItemView::item {height: %dpx;}' % dpiSize(ComboxItemHeight))
+        self.renderModeCombox.setView(QListView())
+        self.renderModeCombox.addItems(f'{it.name} {it.value}' for it in sdk.RenderMode)
+        self.renderModeCombox.setCurrentIndex(1)
+        hLayout.addWidget(self.renderModeCombox)
 
         # ----
         hLayout = QHBoxLayout()
@@ -777,6 +785,7 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         destroyRoomBtn.setMinimumHeight(dpiSize(ButtonHeight))
         destroyRoomBtn.clicked.connect(self.onClickDestroyRoomBtn)
         hLayout.addWidget(destroyRoomBtn)
+        #hLayout.addStretch(1)
 
         # ----
         hLayout = QHBoxLayout()
@@ -987,8 +996,15 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         self.copyViewHandleAction.triggered.connect(self.onActionCopyViewHandle)
         self.snapshotAction = QAction('Snapshot')
         self.snapshotAction.triggered.connect(self.onActionSnapshot)
-        self.mirrorAction = QAction('Mirror')
-        self.mirrorAction.triggered.connect(self.onActionMirror)
+        self.mirrorNoneAction = QAction('None')
+        self.mirrorNoneAction.setData(sdk.MirrorType.None_)
+        self.mirrorNoneAction.triggered.connect(self.onActionMirror)
+        self.mirrorRenderAction = QAction('Render')
+        self.mirrorRenderAction.setData(sdk.MirrorType.Render)
+        self.mirrorRenderAction.triggered.connect(self.onActionMirror)
+        self.mirrorRenderAndEncoderAction = QAction('RenderAndEncoder')
+        self.mirrorRenderAndEncoderAction.setData(sdk.MirrorType.RenderAndEncoder)
+        self.mirrorRenderAndEncoderAction.triggered.connect(self.onActionMirror)
 
         eventNameLabel = QLabel('EventNameFilter:')
         hLayout.addWidget(eventNameLabel)
@@ -1251,6 +1267,10 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         if streamKey != None:
             self.snapshotAction.setData(streamKey)
             menu.addAction(self.snapshotAction)
+            if streamKey == sdk.StreamIndex.Main:
+                subMenu = QMenu('VideoMirrorType', menu)
+                subMenu.addActions([self.mirrorNoneAction, self.mirrorRenderAction, self.mirrorRenderAndEncoderAction])
+                menu.addMenu(subMenu)
 
         self.menuShowOnVideoLableIndex = index  # must before menu.exec_
         menu.exec_(QCursor.pos())
@@ -1300,7 +1320,9 @@ class MainWindow(QMainWindow, astask.AsyncTask):
             self.rtcVideo.takeLocalSnapshot(streamKey)
 
     def onActionMirror(self) -> None:
-        pass
+        action = self.sender()
+        mirrorType = action.data()
+        self.rtcVideo.setLocalVideoMirrorType(mirrorType)
 
     def resetViewsBackground(self, index: List[int]) -> None:
         self.clearViewIndexs.extend(index)
@@ -1409,7 +1431,7 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         if self.externalVideoSourceCheck.isChecked():
             self.rtcVideo.stopVideoCapture()    # don't need
             self.rtcVideo.setVideoSourceType(stream_index=sdk.StreamIndex.Main, source_type=sdk.VideoSourceType.External)
-            self.startPushFrames()
+            self.delayCall(timeMs=200, func=self.startPushFrames)
         else:
             self.stopPushFrames()
             self.rtcVideo.setVideoSourceType(stream_index=sdk.StreamIndex.Main, source_type=sdk.VideoSourceType.Internal)
@@ -1548,7 +1570,8 @@ class MainWindow(QMainWindow, astask.AsyncTask):
             viewHandle = int(viewText, base=16)
         else:
             viewHandle = int(viewText, base=10)
-        videoCanvas = sdk.VideoCanvas(view=viewHandle, render_mode=sdk.RenderMode.Fit, background_color=0x000000)
+        renderMode = sdk.RenderMode(int(self.renderModeCombox.currentText()[-1]))
+        videoCanvas = sdk.VideoCanvas(view=viewHandle, render_mode=renderMode, background_color=0x000000)
         streamIndex = sdk.StreamIndex(int(self.localStreamIndexCombox.currentText()[-1]))
         self.rtcVideo.setLocalVideoCanvas(index=streamIndex, canvas=videoCanvas)
         for i in range(self.remoteViewStartIndex):
@@ -1725,15 +1748,17 @@ class MainWindow(QMainWindow, astask.AsyncTask):
             return
         self.rtcRooms[roomId].leaveRoom()
         self.rtcRoomUsers[roomId].clear()
-        self.resetViewsBackground(range(self.viewCount))    # todo
-        self.remoteUid2ViewIndex.clear()
-        self.viewUsingIndex.clear()
+        for key in list(self.remoteUid2ViewIndex.keys()):
+            if roomId == key[0]:
+                items = self.remoteUid2ViewIndex.pop(key)
+                for streamIndex, viewIndex in items:
+                    if viewIndex in self.viewUsingIndex:
+                        self.viewUsingIndex.remove(viewIndex)
+                        self.resetViewsBackground([viewIndex])
+                    if viewIndex in self.viewIndex2StreamKey:
+                        self.viewIndex2StreamKey.pop(viewIndex)
         self.subscribeStreamUserCombox.clear()
         self.subscribeScreenUserCombox.clear()
-        for i in range(self.viewCount):
-            streamKey = self.viewIndex2StreamKey.get(i, None)
-            if isinstance(streamKey, sdk.RemoteStreamKey):
-                self.viewIndex2StreamKey.pop(i)
 
     def onClickDestroyRoomBtn(self) -> None:
         roomId = self.roomIdCombox.currentText().strip()
@@ -1763,25 +1788,25 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         if not self.rtcVideo:
             return
         check = self.sender()
-        self.rtcVideo.saveVideoFrameObserverFrame(sdk.SaveFrameType.LocalVideoFrame, check.isChecked(), 2, 100)
+        self.rtcVideo.saveVideoFrame(sdk.SaveFrameType.LocalVideoFrame, check.isChecked(), 2, 100)
 
     def onClickSaveRemoteStreamCheck(self) -> None:
         if not self.rtcVideo:
             return
         check = self.sender()
-        self.rtcVideo.saveVideoFrameObserverFrame(sdk.SaveFrameType.RemoteVideoFrame, check.isChecked(), 2, 100)
+        self.rtcVideo.saveVideoFrame(sdk.SaveFrameType.RemoteVideoFrame, check.isChecked(), 2, 100)
 
     def onClickSaveLocalScreenCheck(self) -> None:
         if not self.rtcVideo:
             return
         check = self.sender()
-        self.rtcVideo.saveVideoFrameObserverFrame(sdk.SaveFrameType.LocalScreenFrame, check.isChecked(), 2, 100)
+        self.rtcVideo.saveVideoFrame(sdk.SaveFrameType.LocalScreenFrame, check.isChecked(), 2, 100)
 
     def onClickSaveRemoteScreenCheck(self) -> None:
         if not self.rtcVideo:
             return
         check = self.sender()
-        self.rtcVideo.saveVideoFrameObserverFrame(sdk.SaveFrameType.RemoteScreenFrame, check.isChecked(), 2, 100)
+        self.rtcVideo.saveVideoFrame(sdk.SaveFrameType.RemoteScreenFrame, check.isChecked(), 2, 100)
 
     def startPushFrames(self) -> None:
         if self.pushTaskId > 0:
@@ -2050,6 +2075,7 @@ class MainWindow(QMainWindow, astask.AsyncTask):
     def onUserLeave(self, event_time: int, event_name: str, event_json: str, event: dict) -> None:
         if not self.currentEventRoomId in self.rtcRoomUsers:
             return
+        roomId = self.currentEventRoomId
         userId = event['user_id']
         self.rtcRoomUsers[self.currentEventRoomId].remove(userId)
         if self.roomIdCombox.currentText() == self.currentEventRoomId:
@@ -2062,19 +2088,23 @@ class MainWindow(QMainWindow, astask.AsyncTask):
                     self.subscribeScreenUserCombox.removeItem(i)
                     break
 
-        if userId in self.remoteUid2ViewIndex:
-            for streamIndex, viewIndex in self.remoteUid2ViewIndex[userId].items():
+        key = roomId, userId
+        if key in self.remoteUid2ViewIndex:
+            items = self.remoteUid2ViewIndex.pop(key)
+            for streamIndex, viewIndex in items:
                 if viewIndex in self.viewUsingIndex:
                     self.videoLabels[viewIndex].setText('Remote')
                     self.viewUsingIndex.remove(viewIndex)
                     self.resetViewsBackground([viewIndex])
-            self.remoteUid2ViewIndex.pop(userId)
+                if viewIndex in self.viewIndex2StreamKey:
+                    self.viewIndex2StreamKey.pop(viewIndex)
 
     def onUserPublishStream(self, event_time: int, event_name: str, event_json: str, event: dict) -> None:
         if not self.rtcVideo:
             return
         if not (event['type'] & sdk.MediaStreamType.Video):
             return
+        roomId = self.currentEventRoomId
         userId = event['user_id']
         if not self.checkAutoSetRemoteStreamVideoCanvas.isChecked():
             sdk.log.warn(f'user_id {userId} joined, but do not setRemoteStreamVideoCanvas for he/she, AutoSetRemoteStreamVideoCanvas is not checked')
@@ -2090,14 +2120,16 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         freeView, freeViewIndex = self.getFreeView()
         self.videoLabels[freeViewIndex].setText(f'Remote user_id {userId} Camera')
         self.viewUsingIndex.add(freeViewIndex)
-        if userId in self.remoteUid2ViewIndex:
-            self.remoteUid2ViewIndex[userId][sdk.StreamIndex.Main] = freeViewIndex
+        key = roomId, userId
+        if key in self.remoteUid2ViewIndex:
+            self.remoteUid2ViewIndex[key][sdk.StreamIndex.Main] = freeViewIndex
         else:
-            self.remoteUid2ViewIndex[userId] = {sdk.StreamIndex.Main: freeViewIndex}
+            self.remoteUid2ViewIndex[key] = {sdk.StreamIndex.Main: freeViewIndex}
         roomId = self.currentEventRoomId
         #roomId = ''
         remoteStreamKey = sdk.RemoteStreamKey(room_id=roomId, user_id=userId, stream_index=sdk.StreamIndex.Main)
-        videoCanvas = sdk.VideoCanvas(view=freeView, render_mode=sdk.RenderMode.Fit, background_color=0x000000)
+        renderMode = sdk.RenderMode(int(self.renderModeCombox.currentText()[-1]))
+        videoCanvas = sdk.VideoCanvas(view=freeView, render_mode=renderMode, background_color=0x000000)
         if sdk.SdkVersion >= '3.47':
             self.rtcVideo.setRemoteVideoCanvas(stream_key=remoteStreamKey, canvas=videoCanvas)
         else:
@@ -2112,30 +2144,32 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         if not self.checkAutoSetRemoteStreamVideoCanvas.isChecked():
             sdk.log.warn(f'user_id {userId} joined, but do not setRemoteStreamVideoCanvas for he/she, AutoSetRemoteStreamVideoCanvas is not checked')
             return
+        roomId = self.currentEventRoomId
         userId = event['user_id']
         remoteStreamKey = sdk.RemoteStreamKey(room_id=self.currentEventRoomId, user_id=userId, stream_index=sdk.StreamIndex.Main)
-        videoCanvas = sdk.VideoCanvas(view=0, render_mode=sdk.RenderMode.Fit, background_color=0x000000)
+        renderMode = sdk.RenderMode(int(self.renderModeCombox.currentText()[-1]))
+        videoCanvas = sdk.VideoCanvas(view=0, render_mode=renderMode, background_color=0x000000)
         if sdk.SdkVersion >= '3.47':
             self.rtcVideo.setRemoteVideoCanvas(stream_key=remoteStreamKey, canvas=videoCanvas)
         else:
             self.rtcVideo.setRemoteStreamVideoCanvas(stream_key=remoteStreamKey, canvas=videoCanvas)
-        if userId in self.remoteUid2ViewIndex:
-            if sdk.StreamIndex.Main in self.remoteUid2ViewIndex[userId]:
-                viewIndex = self.remoteUid2ViewIndex[userId].pop(sdk.StreamIndex.Main)
+        key = roomId, userId
+        if key in self.remoteUid2ViewIndex:
+            if sdk.StreamIndex.Main in self.remoteUid2ViewIndex[key]:
+                viewIndex = self.remoteUid2ViewIndex[key].pop(sdk.StreamIndex.Main)
                 if viewIndex in self.viewUsingIndex:
                     self.videoLabels[viewIndex].setText('Remote')
                     self.viewUsingIndex.remove(viewIndex)
                     self.resetViewsBackground([viewIndex])
-        for i in range(self.viewCount):
-            if remoteStreamKey == self.viewIndex2StreamKey.get(i, None):
-                self.viewIndex2StreamKey.pop(i)
-                break
+                if viewIndex in self.viewIndex2StreamKey:
+                    self.viewIndex2StreamKey.pop(viewIndex)
 
     def onUserPublishScreen(self, event_time: int, event_name: str, event_json: str, event: dict) -> None:
         if not self.rtcVideo:
             return
         if not (event['type'] & sdk.MediaStreamType.Video):
             return
+        roomId = self.currentEventRoomId
         userId = event['user_id']
         if not self.checkAutoSetRemoteStreamVideoCanvas.isChecked():
             sdk.log.warn(f'user_id {userId} joined, but do not setRemoteStreamVideoCanvas for he/she, AutoSetRemoteStreamVideoCanvas is not checked')
@@ -2151,12 +2185,14 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         freeView, freeViewIndex = self.getFreeView()
         self.videoLabels[freeViewIndex].setText(f'Remote user_id {userId} Screen')
         self.viewUsingIndex.add(freeViewIndex)
-        if userId in self.remoteUid2ViewIndex:
-            self.remoteUid2ViewIndex[userId][sdk.StreamIndex.Screen] = freeViewIndex
+        key = roomId, userId
+        if key in self.remoteUid2ViewIndex:
+            self.remoteUid2ViewIndex[key][sdk.StreamIndex.Screen] = freeViewIndex
         else:
-            self.remoteUid2ViewIndex[userId] = {sdk.StreamIndex.Screen: freeViewIndex}
+            self.remoteUid2ViewIndex[key] = {sdk.StreamIndex.Screen: freeViewIndex}
         remoteStreamKey = sdk.RemoteStreamKey(room_id=self.currentEventRoomId, user_id=userId, stream_index=sdk.StreamIndex.Screen)
-        videoCanvas = sdk.VideoCanvas(view=freeView, render_mode=sdk.RenderMode.Fit, background_color=0x000000)
+        renderMode = sdk.RenderMode(int(self.renderModeCombox.currentText()[-1]))
+        videoCanvas = sdk.VideoCanvas(view=freeView, render_mode=renderMode, background_color=0x000000)
         if sdk.SdkVersion >= '3.47':
             self.rtcVideo.setRemoteVideoCanvas(stream_key=remoteStreamKey, canvas=videoCanvas)
         else:
@@ -2171,24 +2207,25 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         if not self.checkAutoSetRemoteStreamVideoCanvas.isChecked():
             sdk.log.warn(f'user_id {userId} joined, but do not setRemoteStreamVideoCanvas for he/she, AutoSetRemoteStreamVideoCanvas is not checked')
             return
+        roomId = self.currentEventRoomId
         userId = event['user_id']
         remoteStreamKey = sdk.RemoteStreamKey(room_id=self.currentEventRoomId, user_id=userId, stream_index=sdk.StreamIndex.Screen)
-        videoCanvas = sdk.VideoCanvas(view=0, render_mode=sdk.RenderMode.Fit, background_color=0x000000)
+        renderMode = sdk.RenderMode(int(self.renderModeCombox.currentText()[-1]))
+        videoCanvas = sdk.VideoCanvas(view=0, render_mode=renderMode, background_color=0x000000)
         if sdk.SdkVersion >= '3.47':
             self.rtcVideo.setRemoteVideoCanvas(stream_key=remoteStreamKey, canvas=videoCanvas)
         else:
             self.rtcVideo.setRemoteStreamVideoCanvas(stream_key=remoteStreamKey, canvas=videoCanvas)
-        if userId in self.remoteUid2ViewIndex:
-            if sdk.StreamIndex.Screen in self.remoteUid2ViewIndex[userId]:
-                viewIndex = self.remoteUid2ViewIndex[userId].pop(sdk.StreamIndex.Screen)
+        key = roomId, userId
+        if key in self.remoteUid2ViewIndex:
+            if sdk.StreamIndex.Screen in self.remoteUid2ViewIndex[key]:
+                viewIndex = self.remoteUid2ViewIndex[key].pop(sdk.StreamIndex.Screen)
                 if viewIndex in self.viewUsingIndex:
                     self.videoLabels[viewIndex].setText('Remote')
                     self.viewUsingIndex.remove(viewIndex)
                     self.resetViewsBackground([viewIndex])
-        for i in range(self.viewCount):
-            if remoteStreamKey == self.viewIndex2StreamKey.get(i, None):
-                self.viewIndex2StreamKey.pop(i)
-                break
+                if viewIndex in self.viewIndex2StreamKey:
+                    self.viewIndex2StreamKey.pop(viewIndex)
 
     def testFunc(self) -> None:
         pass

@@ -64,6 +64,7 @@ def publishExternalVideoStreamTest(self):
     #renderMode = sdk.RenderMode.Hidden  #1
     renderMode = sdk.RenderMode.Fit     #2
     #renderMode = sdk.RenderMode.Fill    #3
+    renderMode = sdk.RenderMode(int(self.renderModeCombox.currentText()[-1]))
     videoCanvas = sdk.VideoCanvas(view=viewHandle, render_mode=renderMode, background_color=0x000000)
     streamIndex = sdk.StreamIndex.Main    #0
     #streamIndex = sdk.StreamIndex.Screen #1
