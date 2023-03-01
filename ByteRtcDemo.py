@@ -1098,25 +1098,27 @@ class MainWindow(QMainWindow, astask.AsyncTask):
     def onEventViewContextMenu(self, pos) -> None:
         menu = QMenu(self)
         action = menu.addAction('Copy')
-        action.triggered.connect(self.onActionCopyEventName)
+        action.triggered.connect(self.onActionCopyEventInfo)
         action = menu.addAction('Clear')
         action.triggered.connect(self.onActionClearEventView)
         menu.exec_(QCursor.pos())
 
-    def onActionCopyEventName(self) -> None:
+    def onActionCopyEventInfo(self) -> None:
         index = self.eventView.currentIndex()
         if index.isValid():
             index = index.siblingAtColumn(ColumnEventType)
-            eventClass = index.data(Qt.ItemDataRole.DisplayRole)
+            eventClass = index.data(Qt.ItemDataRole.DisplayRole) + 'EventHandler'
             roomId = index.data(Qt.ItemDataRole.UserRole)
             index = index.siblingAtColumn(ColumnEventName)
             eventName = index.data(Qt.ItemDataRole.DisplayRole)
+            index = index.siblingAtColumn(ColumnEventTime)
+            eventTime = index.data(Qt.ItemDataRole.DisplayRole)
             index = index.siblingAtColumn(ColumnEventContent)
             event = index.data(Qt.ItemDataRole.UserRole)
             if roomId:
-                QApplication.clipboard().setText(f'room_id={roomId}\n{eventClass}.{eventName} {util.prettyDict(event)}')
+                QApplication.clipboard().setText(f'room_id={roomId}\n{eventTime} {eventClass}.{eventName} {util.prettyDict(event)}')
             else:
-                QApplication.clipboard().setText(f'{eventClass}.{eventName} {util.prettyDict(event)}')
+                QApplication.clipboard().setText(f'{eventTime} {eventClass}.{eventName} {util.prettyDict(event)}')
 
     def onActionClearEventView(self) -> None:
         self.itemModel.removeRows(0, self.itemModel.rowCount())
@@ -1750,8 +1752,8 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         self.rtcRoomUsers[roomId].clear()
         for key in list(self.remoteUid2ViewIndex.keys()):
             if roomId == key[0]:
-                items = self.remoteUid2ViewIndex.pop(key)
-                for streamIndex, viewIndex in items:
+                streamIndex2View = self.remoteUid2ViewIndex.pop(key)
+                for streamIndex, viewIndex in streamIndex2View.items():
                     if viewIndex in self.viewUsingIndex:
                         self.viewUsingIndex.remove(viewIndex)
                         self.resetViewsBackground([viewIndex])
@@ -2090,8 +2092,8 @@ class MainWindow(QMainWindow, astask.AsyncTask):
 
         key = roomId, userId
         if key in self.remoteUid2ViewIndex:
-            items = self.remoteUid2ViewIndex.pop(key)
-            for streamIndex, viewIndex in items:
+            streamIndex2View = self.remoteUid2ViewIndex.pop(key)
+            for streamIndex, viewIndex in streamIndex2View.items():
                 if viewIndex in self.viewUsingIndex:
                     self.videoLabels[viewIndex].setText('Remote')
                     self.viewUsingIndex.remove(viewIndex)

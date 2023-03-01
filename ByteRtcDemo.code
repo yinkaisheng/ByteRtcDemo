@@ -369,7 +369,7 @@ self.videoEffect = self.rtcVideo.getVideoEffectInterface()
 if self.videoEffect:
     licensePath = os.path.join(sdk.SdkBinDirFull, 'effect.lic')
     modelPath = os.path.join(sdk.SdkBinDirFull, 'cvlab/model')
-    imagePath = os.path.join(sdk.ExeDir, 'VirtualBackgourndImages/office.jpg')
+    imagePath = os.path.join(sdk.ExeDir, 'VirtualBackgroundImages/office.jpg')
     ret = self.videoEffect.initCVResource(licensePath, modelPath)
     if ret == 0:
         ret = self.videoEffect.enableVideoEffect()
