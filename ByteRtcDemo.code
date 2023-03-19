@@ -50,6 +50,38 @@ self.rtcVideo.startVideoCapture()
 
 ----boundary----
 
+name=RtcVideo.setVideoWatermark
+code=
+
+streamIndex = sdk.StreamIndex.Main
+#streamIndex = sdk.StreamIndex.Screen
+imagePath = r'C:\Users\Admin\Downloads\Pictures\watermark.jpg'
+landscapeWatermark = sdk.Watermark(url=None, x=0, y=0, width=0.1, height=0.1)
+portraitWatermark = sdk.Watermark(url=None, x=0, y=0, width=0.1, height=0.1)
+watermarkConfig = sdk.WatermarkConfig(visibleInPreview=True, positionInLandscapeMode=landscapeWatermark, positionInPortraitMode=portraitWatermark)
+self.rtcVideo.setVideoWatermark(streamIndex, imagePath, watermarkConfig)
+#self.delayCall(timeMs=10000, func=self.rtcVideo.clearVideoWatermark, stream_index=streamIndex)
+
+----boundary----
+
+name=RtcVideo.clearVideoWatermark
+code=
+
+streamIndex = sdk.StreamIndex.Main
+#streamIndex = sdk.StreamIndex.Screen
+self.rtcVideo.clearVideoWatermark(streamIndex)
+
+----boundary----
+
+name=RtcVideo.setDummyCaptureImagePath
+code=
+
+filePath = r'C:\Users\Admin\Downloads\Pictures\jpeg-to-i420-cost-release.jpg'
+#filePath = ''
+self.rtcVideo.setDummyCaptureImagePath(filePath)
+
+----boundary----
+
 name=RtcVideo.saveVideoFrame
 code=
 

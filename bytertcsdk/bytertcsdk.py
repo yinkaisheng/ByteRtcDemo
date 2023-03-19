@@ -923,6 +923,64 @@ class VideoSolution:
         return sVideoSolu
 
 
+class StructWatermark(ctypes.Structure):
+    _fields_ = [("url", ctypes.c_char_p),
+                ("x", ctypes.c_float),
+                ("y", ctypes.c_float),
+                ("width", ctypes.c_float),
+                ("height", ctypes.c_float),
+                ]
+
+
+class Watermark:
+    def __init__(self, url: str = None, x: float = 0, y: float = 0, width: float = 0.05, height: float = 0.05):
+        self.url = url
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+
+    def __str__(self) -> str:
+        return f'{self.__class__.__name__}(url="{self.url}", x={self.x}, y={self.y}, width={self.width}, height={self.height})'
+
+    __repr__ = __str__
+
+    def toStruct(self) -> StructWatermark:
+        sWatermark = StructWatermark()
+        sWatermark.url = self.url.encode() if self.url != None else 0
+        sWatermark.x = self.x
+        sWatermark.y = self.y
+        sWatermark.width = self.width
+        sWatermark.height = self.height
+        return sWatermark
+
+
+class StructWatermarkConfig(ctypes.Structure):
+    _fields_ = [("visibleInPreview", ctypes.c_bool),
+                ("positionInLandscapeMode", StructWatermark),
+                ("positionInPortraitMode", StructWatermark),
+                ]
+
+
+class WatermarkConfig:
+    def __init__(self, visibleInPreview: bool = True, positionInLandscapeMode: Watermark = None, positionInPortraitMode: Watermark = None):
+        self.visibleInPreview = visibleInPreview
+        self.positionInLandscapeMode = positionInLandscapeMode
+        self.positionInPortraitMode = positionInPortraitMode
+
+    def __str__(self) -> str:
+        return f'{self.__class__.__name__}(visibleInPreview={self.visibleInPreview}, positionInLandscapeMode={self.positionInLandscapeMode}, positionInPortraitMode={self.positionInPortraitMode})'
+
+    __repr__ = __str__
+
+    def toStruct(self) -> StructWatermarkConfig:
+        sWatermarkConfig = StructWatermarkConfig()
+        sWatermarkConfig.visibleInPreview = self.visibleInPreview
+        sWatermarkConfig.positionInLandscapeMode = self.positionInLandscapeMode.toStruct()
+        sWatermarkConfig.positionInPortraitMode = self.positionInPortraitMode.toStruct()
+        return sWatermarkConfig
+
+
 class StructAudioPropertiesConfig(ctypes.Structure):
     _fields_ = [("interval", ctypes.c_int),
                 ("enable_spectrum", ctypes.c_bool),
@@ -2181,6 +2239,26 @@ class RTCVideo:
         if not self.pIRTCVideo:
             return
         self.dll.byte_RTCVideo_stopVideoCapture(self.pIRTCVideo)
+
+    @ APITime
+    def setVideoWatermark(self, stream_index: StreamIndex, image_path: str, watermark_config: WatermarkConfig) -> int:
+        if not self.pIRTCVideo:
+            return
+        imagePath = image_path.encode() if image_path != None else 0
+        self.dll.byte_RTCVideo_setVideoWatermark(self.pIRTCVideo, stream_index, imagePath, ctypes.byref(watermark_config.toStruct()))
+
+    @ APITime
+    def clearVideoWatermark(self, stream_index: StreamIndex) -> None:
+        if not self.pIRTCVideo:
+            return
+        self.dll.byte_RTCVideo_clearVideoWatermark(self.pIRTCVideo, stream_index)
+
+    @ APITime
+    def setDummyCaptureImagePath(self, file_path: str) -> int:
+        if not self.pIRTCVideo:
+            return
+        filePath = file_path.encode() if file_path != None else 0
+        return self.dll.byte_RTCVideo_setDummyCaptureImagePath(self.pIRTCVideo, filePath)
 
     @ APITime
     def setLocalVideoMirrorType(self, mirror: MirrorType) -> None:

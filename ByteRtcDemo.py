@@ -2264,7 +2264,7 @@ def _adjustPos(win: MainWindow):
             ctypes.windll.user32.SetWindowPos(hwnd, 0, cmdX, cmdY, cmdWidth, cmdHeight, 4)
 
 
-def _start():
+def _start() -> int:
     if sys.platform == 'win32':
         ctypes.windll.kernel32.SetConsoleTitleW(ctypes.c_wchar_p(
             f'{DemoTitle} 不要在命令行界面上点击，否则会使UI线程卡住, ConsoleLog: bytesdklog'))
@@ -2272,11 +2272,11 @@ def _start():
     win = MainWindow()
     win.show()
     _adjustPos(win)
-    sys.exit(app.exec_())
+    return app.exec_()
 
 
 if __name__ == '__main__':
-    print(sys.executable)
+    print('sys.executable:', sys.executable)
     try:
         _start()
     except Exception as ex:
