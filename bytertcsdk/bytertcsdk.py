@@ -2257,6 +2257,9 @@ class RTCVideo:
     def setDummyCaptureImagePath(self, file_path: str) -> int:
         if not self.pIRTCVideo:
             return
+        if SdkVersion < '3.46':
+            log.error('does not support this API')
+            return -1
         filePath = file_path.encode() if file_path != None else 0
         return self.dll.byte_RTCVideo_setDummyCaptureImagePath(self.pIRTCVideo, filePath)
 
