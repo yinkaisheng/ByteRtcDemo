@@ -17,8 +17,8 @@ Demo功能：
 ![APILog](images/APILog.jpg)
 
 4，Demo代码编辑器提供Python API模板，可以修改模板代码测试所有API参数
-![SelectAPI](images/SelectAPI1.jpg)
-![SelectAPI](images/SelectAPI2.jpg)
+![SelectAPI](images/SelectApi1.jpg)
+![SelectAPI](images/SelectApi2.jpg)
 
 4，可用Demo代码编辑器实现任意API和回调的组合调用，模拟各种场景下的API调用
 
