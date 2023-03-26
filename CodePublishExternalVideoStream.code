@@ -74,7 +74,7 @@ def publishExternalVideoStreamTest(self):
     self.rtcVideo.setVideoSourceType(stream_index=sdk.StreamIndex.Main, source_type=sdk.VideoSourceType.External)
     self.startPushFrames()
     self.externalVideoSourceCheck.setChecked(True)
-    self.appendOutputEditText(f'\n## check {self.externalVideoSourceCheck.isChecked()}')
+    #self.appendOutputEditText(f'\nlog self.externalVideoSourceCheck check state: {self.externalVideoSourceCheck.isChecked()}')
 
 
 #给MainWindow动态添加方法
