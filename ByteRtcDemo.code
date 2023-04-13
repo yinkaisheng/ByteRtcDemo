@@ -220,9 +220,11 @@ code=
 
 self.snapshotCount = 0
 def onTakeLocalSnapshotResult(self, event_time: int, event_name: str, event_json: str, event: dict) -> None:
+    if event['video_frame'] == 0:
+        return
     self.snapshotCount += 1
     videoFrame = sdk.IVideoFrame(event['video_frame'])
-    self.appendOutputEditText(f'onTakeLocalSnapshotResult IVideoFrame: {videoFrame.width()}x{videoFrame.height()},'
+    self.appendOutputEditText(f'onTakeLocalSnapshotResult IVideoFrame: {videoFrame.width()} x {videoFrame.height()},'
                               f'format {videoFrame.pixelFormat()}, planes {videoFrame.numberOfPlanes()}, stride {videoFrame.getPlaneStride(0)}')
     if videoFrame.pixelFormat() == sdk.VideoPixelFormat.ARGB:
         try:
@@ -263,6 +265,8 @@ code=
 
 self.snapshotCount = 0
 def onTakeRemoteSnapshotResult(self, event_time: int, event_name: str, event_json: str, event: dict) -> None:
+    if event['video_frame'] == 0:
+        return
     self.snapshotCount += 1
     videoFrame = sdk.IVideoFrame(event['video_frame'])
     self.appendOutputEditText(f'onTakeLocalSnapshotResult IVideoFrame: {videoFrame.width()}x{videoFrame.height()},'

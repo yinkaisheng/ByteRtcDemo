@@ -1468,6 +1468,7 @@ class MainWindow(QMainWindow, astask.AsyncTask):
             self.onClickLeaveRoomBtn()
             self.onClickDestroyRoomBtn()
         if self.rtcVideo:
+            self.rtcVideo.stopVideoCapture()
             self.adm = None
             self.vdm = None
             self.videoEffect = None
@@ -1931,6 +1932,8 @@ class MainWindow(QMainWindow, astask.AsyncTask):
             videoFrame.pFrame = None
             pushFrameCount += 1
             waitTime = (pushFrameCount + 1) / fps - (now - pushStartTick)
+            #if pushFrameCount % 15 == 0:
+            #    waitTime = random.randint(200, 600) / 1000
             #print(f'{pushFrameCount} {fps} e {elapsed:.3f} w {waitTime:.3f}')
             if waitTime < 0:
                 waitTime = 0
@@ -2018,8 +2021,10 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         pass
 
     def onTakeLocalSnapshotResult(self, event_time: int, event_name: str, event_json: str, event: dict) -> None:
+        if event['video_frame'] == 0:
+            return
         videoFrame = sdk.IVideoFrame(event['video_frame'])
-        self.appendOutputEditText(f'onTakeLocalSnapshotResult IVideoFrame: {videoFrame.width()}x{videoFrame.height()},'
+        self.appendOutputEditText(f'onTakeLocalSnapshotResult IVideoFrame: {videoFrame.width()} x {videoFrame.height()},'
                                   f'format {videoFrame.pixelFormat()}, planes {videoFrame.numberOfPlanes()}, stride {videoFrame.getPlaneStride(0)}')
         try:
             imagePath = f'localSnapshot.bmp'
@@ -2039,6 +2044,8 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         videoFrame.release()
 
     def onTakeRemoteSnapshotResult(self, event_time: int, event_name: str, event_json: str, event: dict) -> None:
+        if event['video_frame'] == 0:
+            return
         videoFrame = sdk.IVideoFrame(event['video_frame'])
         self.appendOutputEditText(f'onTakeRemoteSnapshotResult IVideoFrame: {videoFrame.width()}x{videoFrame.height()},'
                                   f'format {videoFrame.pixelFormat()}, planes {videoFrame.numberOfPlanes()}, stride {videoFrame.getPlaneStride(0)}')

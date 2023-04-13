@@ -242,8 +242,8 @@ class VideoSuperResolutionModeChangedReason(MyIntEnum):
     DynamicClose = 5
     OtherSettingDisabled = 6
     OtherSettingEnabled = 7
-    NoComponent = 100
-    StreamNotExist = 101
+    NoComponent = 8
+    StreamNotExist = 9
 
 
 class RoomProfileType(MyIntEnum):
@@ -2467,6 +2467,13 @@ class RTCVideo:
         else:
             pass
 
+    def __convertEnum(self, adict: dict, key: str, enumType: MyIntEnum) -> None:
+        '''if enum value changed in C++, use this'''
+        try:
+            adict[key] = enumType(adict[key])
+        except Exception as ex:
+            pass
+
     def __modifyEventIfHasEnum(self, event_name: str, event: dict) -> None:
         if event_name == 'onConnectionStateChanged':
             event['state'] = ConnectionState(event['state'])
@@ -2543,8 +2550,10 @@ class RTCVideo:
             event['reason'] = RemoteVideoStateChangeReason(event['reason'])
         elif event_name == 'onRemoteVideoSuperResolutionModeChanged':
             event['stream_key']['stream_index'] = StreamIndex(event['stream_key']['stream_index'])
-            event['mode'] = VideoSuperResolutionMode(event['mode'])
-            event['reason'] = VideoSuperResolutionModeChangedReason(event['reason'])
+            #event['mode'] = VideoSuperResolutionMode(event['mode'])
+            #event['reason'] = VideoSuperResolutionModeChangedReason(event['reason'])
+            self.__convertEnum(event, 'mode', VideoSuperResolutionMode)
+            self.__convertEnum(event, 'reason', VideoSuperResolutionModeChangedReason)
         elif event_name == 'onAudioFrameSendStateChanged':
             event['state'] = FirstFrameSendState(event['state'])
         elif event_name == 'onVideoFrameSendStateChanged':
