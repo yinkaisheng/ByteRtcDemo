@@ -41,12 +41,19 @@ if self.rtcVideo:
 
 ----boundary----
 
-name=RtcVideo.startVideoCapture
+name=RtcVideo.setVideoCaptureRotation
 code=
 
-self.rtcVideo.startVideoCapture()
-#self.rtcVideo.stopVideoCapture()
-#self.delayCall(timeMs=6000, func=self.rtcVideo.stopVideoCapture)
+self.rtcVideo.setVideoCaptureRotation(rotation=90)
+
+----boundary----
+
+name=RtcVideo.clearVideoWatermark
+code=
+
+streamIndex = sdk.StreamIndex.Main
+#streamIndex = sdk.StreamIndex.Screen
+self.rtcVideo.clearVideoWatermark(streamIndex)
 
 ----boundary----
 

@@ -228,6 +228,13 @@ class VideoStreamScaleMode(MyIntEnum):
     FitWithFilling = 3
 
 
+class VideoRotation(MyIntEnum):
+    VideoRotation0 = 0
+    VideoRotation90 = 90
+    VideoRotation180 = 180
+    VideoRotation270 = 270
+
+
 class VideoSuperResolutionMode(MyIntEnum):
     Off = 0
     On = 1
@@ -2156,6 +2163,12 @@ class RTCVideo:
             return
         ret = self.dll.byte_RTCVideo_setVideoCaptureConfig(self.pIRTCVideo, ctypes.byref(capture_config.toStruct()))
         return ret
+
+    @ APITime
+    def setVideoCaptureRotation(self, rotation: VideoRotation) -> None:
+        if not self.pIRTCVideo:
+            return
+        self.dll.byte_RTCVideo_setVideoCaptureRotation(self.pIRTCVideo, rotation)
 
     @ APITime
     def setVideoEncoderConfig(self, encoder_config: Union[VideoEncoderConfig, List[VideoEncoderConfig]]) -> int:
