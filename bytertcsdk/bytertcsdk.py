@@ -1466,7 +1466,7 @@ class VideoEffect:
     @ APITime
     def initCVResource(self, license_file_path: str, algo_model_dir: str) -> int:
         if SdkVersion < '3.47':
-            log.error('does not support this API')
+            log.error(f'{SdkVersion} does not support this API')
             return
         if self.pVideoEffect:
             ret = self.dll.byte_IVideoEffect_initCVResource(self.pVideoEffect, license_file_path.encode(), algo_model_dir.encode())
@@ -1505,7 +1505,7 @@ class VideoEffect:
     @ APITime
     def enableVideoEffect(self) -> int:
         if SdkVersion < '3.47':
-            log.error('does not support this API')
+            log.error(f'{SdkVersion} does not support this API')
             return
         if self.pVideoEffect:
             ret = self.dll.byte_IVideoEffect_enableVideoEffect(self.pVideoEffect)
@@ -1514,7 +1514,7 @@ class VideoEffect:
     @ APITime
     def disableVideoEffect(self) -> int:
         if SdkVersion < '3.47':
-            log.error('does not support this API')
+            log.error(f'{SdkVersion} does not support this API')
             return
         if self.pVideoEffect:
             ret = self.dll.byte_IVideoEffect_disableVideoEffect(self.pVideoEffect)
@@ -1529,7 +1529,7 @@ class VideoEffect:
     @ APITime
     def enableVirtualBackground(self, bg_sticker_path: str, source: VirtualBackgroundSource) -> int:
         if SdkVersion < '3.47':
-            log.error('does not support this API')
+            log.error(f'{SdkVersion} does not support this API')
             return
         if self.pVideoEffect:
             ret = self.dll.byte_IVideoEffect_enableVirtualBackground(self.pVideoEffect,
@@ -1545,7 +1545,7 @@ class VideoEffect:
     @ APITime
     def setBackgroundSticker(self, model_path: str, source: VirtualBackgroundSource) -> int:
         if SdkVersion < '3.46':
-            log.error('does not support this API')
+            log.error(f'{SdkVersion} does not support this API')
             return
         if self.pVideoEffect:
             ret = self.dll.byte_IVideoEffect_setBackgroundSticker(self.pVideoEffect,
@@ -2141,7 +2141,7 @@ class RTCVideo:
         if not self.pIRTCVideo:
             return
         if SdkVersion < '3.47':
-            log.error('does not support this API, use setRemoteStreamVideoCanvas')
+            log.error(f'{SdkVersion} does not support this API, use setRemoteStreamVideoCanvas')
             return
         self.dll.byte_RTCVideo_setRemoteVideoCanvas(self.pIRTCVideo, ctypes.byref(stream_key.toStruct()),
                                                     ctypes.byref(canvas.toStruct()))
@@ -2152,7 +2152,7 @@ class RTCVideo:
         if not self.pIRTCVideo:
             return
         if SdkVersion >= '3.47':
-            log.error('does not support this API, use setRemoteVideoCanvas')
+            log.error(f'{SdkVersion} does not support this API, use setRemoteVideoCanvas')
             return
         self.dll.byte_RTCVideo_setRemoteStreamVideoCanvas(self.pIRTCVideo, ctypes.byref(stream_key.toStruct()),
                                                           ctypes.byref(canvas.toStruct()))
@@ -2167,6 +2167,9 @@ class RTCVideo:
     @ APITime
     def setVideoCaptureRotation(self, rotation: VideoRotation) -> None:
         if not self.pIRTCVideo:
+            return
+        if SdkVersion < '3.51':
+            log.error(f'{SdkVersion} does not support this API')
             return
         self.dll.byte_RTCVideo_setVideoCaptureRotation(self.pIRTCVideo, rotation)
 
@@ -2271,7 +2274,7 @@ class RTCVideo:
         if not self.pIRTCVideo:
             return
         if SdkVersion < '3.46':
-            log.error('does not support this API')
+            log.error(f'{SdkVersion} does not support this API')
             return -1
         filePath = file_path.encode() if file_path != None else 0
         return self.dll.byte_RTCVideo_setDummyCaptureImagePath(self.pIRTCVideo, filePath)
@@ -2429,7 +2432,7 @@ class RTCVideo:
         if not self.pIRTCVideo:
             return
         if SdkVersion < '3.46':
-            log.error('does not support this API')
+            log.error(f'{SdkVersion} does not support this API')
             return -1
         ret = self.dll.byte_RTCVideo_setRemoteVideoSuperResolution(self.pIRTCVideo, ctypes.byref(stream_key.toStruct()), mode)
         return ret
