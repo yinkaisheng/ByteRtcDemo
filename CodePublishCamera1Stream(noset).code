@@ -1,5 +1,5 @@
 #下面所有代码在MainWindow.execCode()中执行
-def publishExternalVideoStreamTest(self, cameraIndex: int):
+def publishCameraStreamTest(self, cameraIndex: int):
     index = self.envCombox.currentIndex()
     if index >= 0:
         env = sdk.Env(index)
@@ -19,45 +19,8 @@ def publishExternalVideoStreamTest(self, cameraIndex: int):
         self.onClickCloudProxyCheck()
     #self.rtcVideo.startCloudProxy([('10.37.144.157', 6779)])
 
-    self.rtcVideo.registerVideoFrameObserver(True)
-    self.rtcVideo.registerLocalEncodedVideoFrameObserver(True)
-    self.rtcVideo.registerRemoteEncodedVideoFrameObserver(True)
-    self.rtcVideo.enableSimulcastMode(True)
-    self.rtcVideo.startAudioCapture()
-
-    #从界面获取采集宽高等配置
-    videoCaptureConfig = sdk.VideoCaptureConfig()
-    videoCaptureConfig.capturePreference = sdk.CapturePreference(int(self.capturePreferenceCombox.currentText()[-1]))
-    videoCaptureConfig.width = int(self.widthEdit.text())
-    videoCaptureConfig.height = int(self.heightEdit.text())
-    videoCaptureConfig.frameRate = int(self.fpsEdit.text())
-    #使用自定义配置
-    #videoCaptureConfig.capturePreference = sdk.CapturePreference.Auto #0
-    #videoCaptureConfig.capturePreference = sdk.CapturePreference.Manual #1
-    #videoCaptureConfig.capturePreference = sdk.CapturePreference.AutoPerformance    #2
-    #videoCaptureConfig.width = 1280
-    #videoCaptureConfig.height = 720
-    #videoCaptureConfig.frameRate = 15
-    self.rtcVideo.setVideoCaptureConfig(videoCaptureConfig)
-
-    #从界面获取编码宽高等配置
-    videoEncoderConfig = sdk.VideoEncoderConfig()
-    videoEncoderConfig.width = int(self.widthEdit.text())
-    videoEncoderConfig.height = int(self.heightEdit.text())
-    videoEncoderConfig.frameRate = int(self.fpsEdit.text())
-    videoEncoderConfig.maxBitrate = int(self.bitrateEdit.text())
-    videoEncoderConfig.encoderPreference = sdk.VideoEncodePreference.Framerate
-    #使用自定义配置
-    #videoEncoderConfig.width = 1280
-    #videoEncoderConfig.height = 720
-    #videoEncoderConfig.frameRate = 15
-    #videoEncoderConfig.maxBitrate = -1
-    #videoEncoderConfig.encoderPreference = sdk.VideoEncodePreference.Disabled #0
-    #videoEncoderConfig.encoderPreference = sdk.VideoEncodePreference.Framerate #1
-    #videoEncoderConfig.encoderPreference = sdk.VideoEncodePreference.Quality #2
-    #videoEncoderConfig.encoderPreference = sdk.VideoEncodePreference.Balance #3
-    self.videoEncoderConfig = videoEncoderConfig
-    self.rtcVideo.setVideoEncoderConfig(videoEncoderConfig)
+    #self.rtcVideo.enableSimulcastMode(True)
+    #self.rtcVideo.startAudioCapture()
 
     viewText = self.localViewEdit.text().strip()
     viewHandle = int(viewText, base=16 if viewText.startswith('0x') or viewText.startswith('0X') else 10)
@@ -71,18 +34,15 @@ def publishExternalVideoStreamTest(self, cameraIndex: int):
     self.rtcVideo.setLocalVideoCanvas(streamIndex, videoCanvas)
     self.viewIndex2StreamKey[0] = streamIndex
 
-    #选择摄像头
-    self.vdm = self.rtcVideo.getVideoDeviceManager()
-    if self.vdm:
-        deviceInfoList = self.vdm.enumerateVideoCaptureDevices2()
-        if cameraIndex < len(deviceInfoList):
-            self.vdm.setVideoCaptureDevice(deviceInfoList[cameraIndex].device_id)
-
+    self.rtcVideo.registerVideoFrameObserver(True)
+    self.rtcVideo.registerLocalEncodedVideoFrameObserver(True)
+    self.rtcVideo.registerRemoteEncodedVideoFrameObserver(True)
+    #self.rtcVideo.saveVideoFrame(sdk.SaveFrameType.LocalVideoFrame, True, fileCount=3, frameCount=100)
     self.rtcVideo.startVideoCapture()
 
 
 #给MainWindow动态添加方法
-MainWindow.publishExternalVideoStreamTest = publishExternalVideoStreamTest
+MainWindow.publishCameraStreamTest = publishCameraStreamTest
 
 
 def onConnectionStateChanged(self, event_time: int, event_name: str, event_json: str, event: dict) -> None:
@@ -140,23 +100,13 @@ def onConnectionStateChanged(self, event_time: int, event_name: str, event_json:
         # roomConfig.is_auto_subscribe_video = True
         # roomConfig.is_auto_subscribe_video = False
 
-        rtcRoom.joinRoom(token, user_info=userInfo, room_config=roomConfig)
+        self.delayCall(timeMs=3000, func=lambda:rtcRoom.joinRoom(token, user_info=userInfo, room_config=roomConfig))
 
         # streamType = sdk.MediaStreamType(int(self.streamMediaStreamTypeCombox.currentText()[-1]))
         # rtcRoom.publishStream(streamType)
         # rtcRoom.publishStream(sdk.MediaStreamType.Audio)
         # rtcRoom.publishStream(sdk.MediaStreamType.Video)
         # rtcRoom.publishStream(sdk.MediaStreamType.Both)
-
-        def changeToExternalVideoSource():
-            if not self.rtcVideo:
-                return
-            self.rtcVideo.stopVideoCapture()
-            self.rtcVideo.setVideoSourceType(stream_index=sdk.StreamIndex.Main, source_type=sdk.VideoSourceType.External)
-            self.startPushFrames()
-            self.externalVideoSourceCheck.setChecked(True)
-
-        self.delayCall(6000, changeToExternalVideoSource)
 
         self.RTCVideoEventHandler['onConnectionStateChanged'] = None
 
@@ -169,6 +119,7 @@ def onRoomStateChanged(self, event_time: int, event_name: str, event_json: str, 
     state = event['state']
     if state != 0:
         self.checkSDKResult(state, 'onRoomStateChanged')
+
 
 MainWindow.onRoomStateChanged = onRoomStateChanged
 
@@ -193,7 +144,7 @@ self.RTCRoomEventHandler['onUserJoined'] = self.onUserJoinedExtra
 '''
 
 #执行测试代码
-self.publishExternalVideoStreamTest(cameraIndex=0)
+self.publishCameraStreamTest(cameraIndex=0)
 
 #最后请手动点击destroyRTCVideo按钮销毁对象或者延迟调用self.onClickDestroyRtcVideoBtn
 #self.delayCall(timeMs=10000, func=self.onClickDestroyRtcVideoBtn)

@@ -13,6 +13,11 @@ import logging as log
 import ctypes.wintypes
 from enum import Enum, IntEnum
 from typing import (Any, Callable, Dict, List, Iterable, Tuple, Union)
+if sys.stdout:
+    import colorama
+    colorama.init(autoreset=True)
+    from colorama import Fore
+
 
 ExePath = os.path.abspath(sys.argv[0])
 ExeDir, ExeNameWithExt = os.path.split(ExePath)
@@ -27,8 +32,8 @@ SdkDirFull = os.path.join(ExeDir, SdkDir)  # d:\Codes\Python\ByteRtcDemo\bytertc
 # the followings must be referenced by full name, such as bytertcsdk.bytertcsdk.SdkBinDir
 SdkBinDir = ''  # binx86_3.45.104
 SdkBinDirFull = ''  # d:\Codes\Python\ByteRtcDemo\bytertcsdk\binx86_3.43.102
+SdkVersion = ''  # '3.45.104', get from folder name
 SdkDllName = 'VolcEngineRTC.dll'
-SdkVersion = ''  # '3.45.104' get from folder name
 APILogPath = f'pid{os.getpid()}_api.log'
 DEVICE_ID_LENGTH = 512
 
@@ -36,7 +41,7 @@ if not os.path.exists(LogDir):
     os.makedirs(LogDir)
 log.Formatter.default_msec_format = '%s.%03d'
 log.basicConfig(filename=os.path.join(LogDir, APILogPath), level=log.INFO,
-                format='%(asctime)s %(levelname)s %(filename)s L%(lineno)d T%(thread)d %(funcName)s: %(message)s')
+                format='%(asctime)s %(levelname)s %(filename)s,%(lineno)d T%(thread)d %(funcName)s: %(message)s')
 
 
 class LogFormatter(log.Formatter):
@@ -66,7 +71,7 @@ class GuiFilter(log.Filter):
 
 GuiStreamObj = GuiStream()
 __sh = log.StreamHandler(GuiStreamObj)
-__sh.setFormatter(LogFormatter('%(asctime)s %(filename)s L%(lineno)d T%(thread)d %(funcName)s: %(message)s'))
+__sh.setFormatter(LogFormatter('%(asctime)s %(filename)s,%(lineno)d T%(thread)d %(funcName)s: %(message)s'))
 __logFilter = GuiFilter()
 __sh.addFilter(__logFilter)
 log.getLogger().addHandler(__sh)
@@ -78,12 +83,8 @@ if sys.stdout:
             # print('custom handler called with\n', record)
 
     __stdsh = log.StreamHandler(sys.stdout)
-    __stdsh.setFormatter(LogFormatter('%(asctime)s %(filename)s L%(lineno)d T%(thread)d %(funcName)s: %(message)s'))
+    __stdsh.setFormatter(LogFormatter(f'%(asctime)s {Fore.GREEN}%(filename)s,%(lineno)d{Fore.RESET} T%(thread)d {Fore.GREEN}%(funcName)s{Fore.RESET}: %(message)s'))
     log.getLogger().addHandler(__stdsh)
-
-
-def isPy38OrHigher():
-    return sys.version_info[:2] >= (3, 8)
 
 
 LastAPICall = ''
@@ -94,7 +95,7 @@ def APITime(func):
     def API(*args, **kwargs):
         global LastAPICall
         if '.' in func.__qualname__:
-            logArgs = args[1:]  #class method, exclude self
+            logArgs = args[1:]  # class method, exclude self
         else:
             logArgs = args
         argsstr = ', '.join(f"'{arg}'" if isinstance(arg, str) else str(arg) for arg in logArgs)
@@ -132,8 +133,9 @@ class _DllClient:
         load = False
         try:
             dllPath = os.path.join(SdkBinDirFull, 'ByteRTCPythonSDK.dll')
-            self.dll = ctypes.cdll.LoadLibrary(dllPath)
             print(f'load dll: {dllPath}')
+            self.dll = ctypes.cdll.LoadLibrary(dllPath)
+            print(f'load success: {self.dll}')
             load = True
         except Exception as ex:
             log.error(ex)
@@ -141,6 +143,8 @@ class _DllClient:
             self.dll.byte_createRTCVideoEventHandler.restype = ctypes.c_void_p
             self.dll.byte_createRTCRoomEventHandler.restype = ctypes.c_void_p
             self.dll.byte_createVideoFrameObserver.restype = ctypes.c_void_p
+            self.dll.byte_RTCVideo_registerLocalEncodedVideoFrameObserver.restype = ctypes.c_void_p
+            self.dll.byte_RTCVideo_registerRemoteEncodedVideoFrameObserver.restype = ctypes.c_void_p
             self.dll.byte_createRTCVideo.restype = ctypes.c_void_p
             self.dll.byte_getErrorDescription.restype = ctypes.c_char_p
             self.dll.byte_getSDKVersion.restype = ctypes.c_char_p
@@ -230,6 +234,13 @@ class VideoStreamScaleMode(MyIntEnum):
     FitWithFilling = 3
 
 
+class VideoRotation(MyIntEnum):
+    VideoRotation0 = 0
+    VideoRotation90 = 90
+    VideoRotation180 = 180
+    VideoRotation270 = 270
+
+
 class VideoSuperResolutionMode(MyIntEnum):
     Off = 0
     On = 1
@@ -244,8 +255,8 @@ class VideoSuperResolutionModeChangedReason(MyIntEnum):
     DynamicClose = 5
     OtherSettingDisabled = 6
     OtherSettingEnabled = 7
-    NoComponent = 100
-    StreamNotExist = 101
+    NoComponent = 8
+    StreamNotExist = 9
 
 
 class RoomProfileType(MyIntEnum):
@@ -679,6 +690,9 @@ class DeviceTransportType(MyIntEnum):
     BlueToothStereoMode = 4
     DisplayAudio = 5
     Virtual = 6
+    USB = 7
+    PCI = 8
+    AirPlay = 9
 
 
 class AudioAbilityType(MyIntEnum):
@@ -839,7 +853,7 @@ class VideoEncoderConfig:
 
     def __str__(self) -> str:
         return f'{self.__class__.__name__}(width={self.width}, height={self.height}, frameRate={self.frameRate}, maxBitrate={self.maxBitrate}'    \
-               f', encoderPreference={self.encoderPreference})'
+            f', encoderPreference={self.encoderPreference})'
 
     __repr__ = __str__
 
@@ -874,7 +888,7 @@ class ScreenVideoEncoderConfig:
 
     def __str__(self) -> str:
         return f'{self.__class__.__name__}(width={self.width}, height={self.height}, frameRate={self.frameRate}, maxBitrate={self.maxBitrate}'    \
-               f', minBitrate={self.minBitrate}, encoderPreference={self.encoderPreference})'
+            f', minBitrate={self.minBitrate}, encoderPreference={self.encoderPreference})'
 
     __repr__ = __str__
 
@@ -908,7 +922,7 @@ class VideoSolution:
 
     def __str__(self) -> str:
         return f'{self.__class__.__name__}(width={self.width}, height={self.height}, fps={self.fps}, max_send_kbps={self.max_send_kbps}'    \
-               f', encode_preference={self.encode_preference})'
+            f', encode_preference={self.encode_preference})'
 
     __repr__ = __str__
 
@@ -922,6 +936,64 @@ class VideoSolution:
         return sVideoSolu
 
 
+class StructWatermark(ctypes.Structure):
+    _fields_ = [("url", ctypes.c_char_p),
+                ("x", ctypes.c_float),
+                ("y", ctypes.c_float),
+                ("width", ctypes.c_float),
+                ("height", ctypes.c_float),
+                ]
+
+
+class Watermark:
+    def __init__(self, url: str = None, x: float = 0, y: float = 0, width: float = 0.05, height: float = 0.05):
+        self.url = url
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+
+    def __str__(self) -> str:
+        return f'{self.__class__.__name__}(url="{self.url}", x={self.x}, y={self.y}, width={self.width}, height={self.height})'
+
+    __repr__ = __str__
+
+    def toStruct(self) -> StructWatermark:
+        sWatermark = StructWatermark()
+        sWatermark.url = self.url.encode() if self.url != None else 0
+        sWatermark.x = self.x
+        sWatermark.y = self.y
+        sWatermark.width = self.width
+        sWatermark.height = self.height
+        return sWatermark
+
+
+class StructWatermarkConfig(ctypes.Structure):
+    _fields_ = [("visibleInPreview", ctypes.c_bool),
+                ("positionInLandscapeMode", StructWatermark),
+                ("positionInPortraitMode", StructWatermark),
+                ]
+
+
+class WatermarkConfig:
+    def __init__(self, visibleInPreview: bool = True, positionInLandscapeMode: Watermark = None, positionInPortraitMode: Watermark = None):
+        self.visibleInPreview = visibleInPreview
+        self.positionInLandscapeMode = positionInLandscapeMode
+        self.positionInPortraitMode = positionInPortraitMode
+
+    def __str__(self) -> str:
+        return f'{self.__class__.__name__}(visibleInPreview={self.visibleInPreview}, positionInLandscapeMode={self.positionInLandscapeMode}, positionInPortraitMode={self.positionInPortraitMode})'
+
+    __repr__ = __str__
+
+    def toStruct(self) -> StructWatermarkConfig:
+        sWatermarkConfig = StructWatermarkConfig()
+        sWatermarkConfig.visibleInPreview = self.visibleInPreview
+        sWatermarkConfig.positionInLandscapeMode = self.positionInLandscapeMode.toStruct()
+        sWatermarkConfig.positionInPortraitMode = self.positionInPortraitMode.toStruct()
+        return sWatermarkConfig
+
+
 class StructAudioPropertiesConfig(ctypes.Structure):
     _fields_ = [("interval", ctypes.c_int),
                 ("enable_spectrum", ctypes.c_bool),
@@ -931,7 +1003,7 @@ class StructAudioPropertiesConfig(ctypes.Structure):
 
 class AudioPropertiesConfig:
     def __init__(self, interval: int = 200, enable_spectrum: bool = False, enable_vad: bool = True):
-        self.interval = interval    #>=100
+        self.interval = interval  # >=100
         self.enable_spectrum = enable_spectrum
         self.enable_vad = enable_vad
 
@@ -983,6 +1055,9 @@ class RemoteStreamKey:
         self.room_id = room_id
         self.user_id = user_id
         self.stream_index = stream_index
+
+    def __eq__(self, other) -> bool:
+        return type(other) == type(self) and other.room_id == self.room_id and other.user_id == self.user_id and other.stream_index == self.stream_index
 
     def __str__(self) -> str:
         return f'{self.__class__.__name__}(room_id={self.room_id}, user_id={self.user_id}, stream_index={self.stream_index})'
@@ -1075,7 +1150,7 @@ class ScreenCaptureSourceInfo:
 
     def __str__(self) -> str:
         return f'{self.__class__.__name__}(type={self.type}, source_id={self.source_id}, source_name={self.source_name}'     \
-               f', application={self.application}, pid={self.pid}, primaryMonitor={self.primaryMonitor}, region_rect={self.region_rect})'
+            f', application={self.application}, pid={self.pid}, primaryMonitor={self.primaryMonitor}, region_rect={self.region_rect})'
 
     __repr__ = __str__
 
@@ -1162,7 +1237,7 @@ class ScreenCaptureParameters:
 
     def __str__(self) -> str:
         return f'{self.__class__.__name__}(content_hint={self.content_hint}, region_rect={self.region_rect}'    \
-               f', filter_config={self.filter_config}, highlight_config={self.highlight_config})'
+            f', filter_config={self.filter_config}, highlight_config={self.highlight_config})'
 
     __repr__ = __str__
 
@@ -1195,8 +1270,8 @@ class RTCRoomConfig:
 
     def __str__(self) -> str:
         return f'{self.__class__.__name__}(room_profile_type={self.room_profile_type}'  \
-               f', is_auto_publish={self.is_auto_publish}, is_auto_subscribe_video={self.is_auto_subscribe_video}'  \
-               f', remote_video_config={self.remote_video_config})'
+            f', is_auto_publish={self.is_auto_publish}, is_auto_subscribe_video={self.is_auto_subscribe_video}'  \
+            f', remote_video_config={self.remote_video_config})'
 
     __repr__ = __str__
 
@@ -1236,10 +1311,10 @@ class AudioDeviceInfo:
         self.is_system_default = False
 
     def __str__(self) -> str:
-        return f'{self.__class__.__name__}(device_id={self.device_id}, device_name={self.device_name}' \
-               f', device_short_name={self.device_short_name}, device_container_id={self.device_container_id}' \
-               f', device_vid={self.device_vid}, device_pid={self.device_pid}, transport_type={self.transport_type}' \
-               f', volume_settable={self.volume_settable}, is_system_default={self.is_system_default}'
+        return f'{self.__class__.__name__}(device_id="{self.device_id}", device_name="{self.device_name}"' \
+            f', device_short_name="{self.device_short_name}", device_container_id={self.device_container_id}' \
+            f', device_vid={self.device_vid}, device_pid={self.device_pid}, transport_type={self.transport_type}' \
+            f', volume_settable={self.volume_settable}, is_system_default={self.is_system_default}'
 
     __repr__ = __str__
 
@@ -1278,8 +1353,8 @@ class VideoDeviceInfo:
         self.transport_type = DeviceTransportType.Unknown
 
     def __str__(self) -> str:
-        return f'{self.__class__.__name__}(device_id={self.device_id}, device_name={self.device_name}' \
-               f', device_vid={self.device_vid}, device_pid={self.device_pid}, transport_type={self.transport_type})'
+        return f'{self.__class__.__name__}(device_id="{self.device_id}", device_name="{self.device_name}"' \
+            f', device_vid={self.device_vid}, device_pid={self.device_pid}, transport_type={self.transport_type})'
 
     __repr__ = __str__
 
@@ -1294,6 +1369,29 @@ class VideoDeviceInfo:
         videoDeviceInfo.device_vid = sVideoDeviceInfo.device_vid
         videoDeviceInfo.transport_type = DeviceTransportType(sVideoDeviceInfo.transport_type)
         return videoDeviceInfo
+
+
+class StructForwardStreamInfo(ctypes.Structure):
+    _fields_ = [("token", ctypes.c_char_p),
+                ("room_id", ctypes.c_char_p),
+                ]
+
+
+class ForwardStreamInfo:
+    def __init__(self, token: str, room_id: str):
+        self.token = token
+        self.room_id = room_id
+
+    def __str__(self) -> str:
+        return f'{self.__class__.__name__}(token={self.token}, room_id={self.room_id}'
+
+    __repr__ = __str__
+
+
+class StructForwardStreamConfiguration(ctypes.Structure):
+    _fields_ = [("forward_stream_dests", ctypes.POINTER(StructForwardStreamInfo)),
+                ("dest_count", ctypes.c_int32),
+                ]
 
 
 class StructCloudProxyInfo(ctypes.Structure):
@@ -1353,7 +1451,7 @@ class VirtualBackgroundSource:
 
     def __str__(self) -> str:
         return f'{self.__class__.__name__}(source_type={self.source_type}'  \
-               f', source_color={self.source_color}, source_path={self.source_path})'
+            f', source_color={self.source_color}, source_path={self.source_path})'
 
     __repr__ = __str__
 
@@ -1374,7 +1472,7 @@ class VideoEffect:
     @ APITime
     def initCVResource(self, license_file_path: str, algo_model_dir: str) -> int:
         if SdkVersion < '3.47':
-            log.error('does not support this API')
+            log.error(f'{SdkVersion} does not support this API')
             return
         if self.pVideoEffect:
             ret = self.dll.byte_IVideoEffect_initCVResource(self.pVideoEffect, license_file_path.encode(), algo_model_dir.encode())
@@ -1413,7 +1511,7 @@ class VideoEffect:
     @ APITime
     def enableVideoEffect(self) -> int:
         if SdkVersion < '3.47':
-            log.error('does not support this API')
+            log.error(f'{SdkVersion} does not support this API')
             return
         if self.pVideoEffect:
             ret = self.dll.byte_IVideoEffect_enableVideoEffect(self.pVideoEffect)
@@ -1422,7 +1520,7 @@ class VideoEffect:
     @ APITime
     def disableVideoEffect(self) -> int:
         if SdkVersion < '3.47':
-            log.error('does not support this API')
+            log.error(f'{SdkVersion} does not support this API')
             return
         if self.pVideoEffect:
             ret = self.dll.byte_IVideoEffect_disableVideoEffect(self.pVideoEffect)
@@ -1437,7 +1535,7 @@ class VideoEffect:
     @ APITime
     def enableVirtualBackground(self, bg_sticker_path: str, source: VirtualBackgroundSource) -> int:
         if SdkVersion < '3.47':
-            log.error('does not support this API')
+            log.error(f'{SdkVersion} does not support this API')
             return
         if self.pVideoEffect:
             ret = self.dll.byte_IVideoEffect_enableVirtualBackground(self.pVideoEffect,
@@ -1453,7 +1551,7 @@ class VideoEffect:
     @ APITime
     def setBackgroundSticker(self, model_path: str, source: VirtualBackgroundSource) -> int:
         if SdkVersion < '3.46':
-            log.error('does not support this API')
+            log.error(f'{SdkVersion} does not support this API')
             return
         if self.pVideoEffect:
             ret = self.dll.byte_IVideoEffect_setBackgroundSticker(self.pVideoEffect,
@@ -1522,7 +1620,7 @@ class IRTCRoomEventHandler:
         """
         event_time: micro seconds since epoch
         """
-        print(f'{room_id} {event_name} {event_json}')
+        print(f'{event_name} {event_json}')
 
 
 class IRTCVideoEventHandler:
@@ -1650,6 +1748,30 @@ class RTCRoom:
             self.dll.byte_RTCRoom_setRemoteVideoConfig(self.pIRTCRoom, user_id.encode(), ctypes.byref(video_config.toStruct()))
             ret = None
         return ret
+
+    @ APITime
+    def startForwardStreamToRooms(self, configs: List[ForwardStreamInfo]) -> None:
+        if not self.pIRTCRoom:
+            return
+        configArray = (StructForwardStreamInfo * len(configs))(*(StructForwardStreamInfo(it.token.encode(), it.room_id.encode()) for it in configs))
+        streamConfig = StructForwardStreamConfiguration(configArray, len(configArray))
+        ret = self.dll.byte_RTCRoom_startForwardStreamToRooms(self.pIRTCRoom, ctypes.byref(streamConfig))
+        return ret
+
+    @ APITime
+    def updateForwardStreamToRooms(self, configs: List[ForwardStreamInfo]) -> None:
+        if not self.pIRTCRoom:
+            return
+        configArray = (StructForwardStreamInfo * len(configs))(*(StructForwardStreamInfo(it.token.encode(), it.room_id.encode()) for it in configs))
+        streamConfig = StructForwardStreamConfiguration(configArray, len(configArray))
+        ret = self.dll.byte_RTCRoom_updateForwardStreamToRooms(self.pIRTCRoom, ctypes.byref(streamConfig))
+        return ret
+
+    @ APITime
+    def stopForwardStreamToRooms(self) -> None:
+        if not self.pIRTCRoom:
+            return
+        self.dll.byte_RTCRoom_stopForwardStreamToRooms(self.pIRTCRoom)
 
     @ APITime
     def sendRoomMessage(self, message: str) -> None:
@@ -1909,6 +2031,10 @@ class RTCVideo:
         self.pIRTCVideo = ctypes.c_void_p(self.IRTCVideo)
         self.videoFrameObserver = self.dll.byte_createVideoFrameObserver()
         self.pVideoFrameObserver = ctypes.c_void_p(self.videoFrameObserver)
+        self.localVideoEncodedFrameObserver = self.dll.byte_createLocalEncodedVideoFrameObserver()
+        self.pLocalVideoEncodedFrameObserver = ctypes.c_void_p(self.localVideoEncodedFrameObserver)
+        self.remoteVideoEncodedFrameObserver = self.dll.byte_createRemoteEncodedVideoFrameObserver()
+        self.pRemoteVideoEncodedFrameObserver = ctypes.c_void_p(self.remoteVideoEncodedFrameObserver)
         self.version = getVersion()
         lineLen = 60
         log.info('\n\n{0}\n|{1:^{middleLen}}|\n{0}\n'.format(
@@ -1949,6 +2075,14 @@ class RTCVideo:
             self.dll.byte_deleteVideoFrameObserver(self.pVideoFrameObserver)
             self.videoFrameObserver = 0
             self.pVideoFrameObserver = None
+        if self.localVideoEncodedFrameObserver:
+            self.dll.byte_deleteLocalEncodedVideoFrameObserver(self.pLocalVideoEncodedFrameObserver)
+            self.localVideoEncodedFrameObserver = 0
+            self.pLocalVideoEncodedFrameObserver = None
+        if self.remoteVideoEncodedFrameObserver:
+            self.dll.byte_deleteRemoteEncodedVideoFrameObserver(self.pRemoteVideoEncodedFrameObserver)
+            self.remoteVideoEncodedFrameObserver = 0
+            self.pRemoteVideoEncodedFrameObserver = None
 
     @ APITime
     def startCloudProxy(self, proxies: List[Tuple[str, int]]) -> None:
@@ -1965,15 +2099,40 @@ class RTCVideo:
         self.dll.byte_RTCVideo_stopCloudProxy(self.pIRTCVideo)
 
     @ APITime
-    def registerVideoFrameObserver(self, videoFrameObserver: ctypes.c_void_p) -> None:
+    def registerVideoFrameObserver(self, register: bool) -> None:
         if not self.pIRTCVideo:
             return
-        self.dll.byte_RTCVideo_registerVideoFrameObserver(self.pIRTCVideo, videoFrameObserver)
+        self.dll.byte_RTCVideo_registerVideoFrameObserver(self.pIRTCVideo, self.pVideoFrameObserver if register else 0)
 
-    def saveVideoFrameObserverFrame(self, frameType: SaveFrameType, save: bool, fileCount: int, frameCount: int) -> None:
+    @ APITime
+    def saveVideoFrame(self, frameType: SaveFrameType, save: bool, fileCount: int, frameCount: int) -> None:
         if not self.pIRTCVideo:
             return
         self.dll.byte_VideoFrameObserver_saveFrame(self.pVideoFrameObserver, frameType, int(save), fileCount, frameCount)
+
+    @ APITime
+    def registerLocalEncodedVideoFrameObserver(self, register: bool) -> None:
+        if not self.pIRTCVideo:
+            return
+        self.dll.byte_RTCVideo_registerLocalEncodedVideoFrameObserver(self.pIRTCVideo, self.pLocalVideoEncodedFrameObserver if register else 0)
+
+    @ APITime
+    def saveLocalEncodedVideoFrame(self, save: bool) -> None:
+        if not self.pIRTCVideo:
+            return
+        self.dll.byte_LocalEncodedVideoFrameObserver_saveFrame(self.pLocalVideoEncodedFrameObserver, int(save))
+
+    @ APITime
+    def registerRemoteEncodedVideoFrameObserver(self, register: bool) -> None:
+        if not self.pIRTCVideo:
+            return
+        self.dll.byte_RTCVideo_registerRemoteEncodedVideoFrameObserver(self.pIRTCVideo, self.pRemoteVideoEncodedFrameObserver if register else 0)
+
+    @ APITime
+    def saveRemoteEncodedVideoFrame(self, save: bool) -> None:
+        if not self.pIRTCVideo:
+            return
+        self.dll.byte_RemoteEncodedVideoFrameObserver_saveFrame(self.pRemoteVideoEncodedFrameObserver, int(save))
 
     @ APITime
     def setLocalVideoCanvas(self, index: StreamIndex, canvas: VideoCanvas) -> int:
@@ -1988,7 +2147,7 @@ class RTCVideo:
         if not self.pIRTCVideo:
             return
         if SdkVersion < '3.47':
-            log.error('does not support this API, use setRemoteStreamVideoCanvas')
+            log.error(f'{SdkVersion} does not support this API, use setRemoteStreamVideoCanvas')
             return
         self.dll.byte_RTCVideo_setRemoteVideoCanvas(self.pIRTCVideo, ctypes.byref(stream_key.toStruct()),
                                                     ctypes.byref(canvas.toStruct()))
@@ -1999,7 +2158,7 @@ class RTCVideo:
         if not self.pIRTCVideo:
             return
         if SdkVersion >= '3.47':
-            log.error('does not support this API, use setRemoteVideoCanvas')
+            log.error(f'{SdkVersion} does not support this API, use setRemoteVideoCanvas')
             return
         self.dll.byte_RTCVideo_setRemoteStreamVideoCanvas(self.pIRTCVideo, ctypes.byref(stream_key.toStruct()),
                                                           ctypes.byref(canvas.toStruct()))
@@ -2010,6 +2169,15 @@ class RTCVideo:
             return
         ret = self.dll.byte_RTCVideo_setVideoCaptureConfig(self.pIRTCVideo, ctypes.byref(capture_config.toStruct()))
         return ret
+
+    @ APITime
+    def setVideoCaptureRotation(self, rotation: VideoRotation) -> None:
+        if not self.pIRTCVideo:
+            return
+        if SdkVersion < '3.51':
+            log.error(f'{SdkVersion} does not support this API')
+            return
+        self.dll.byte_RTCVideo_setVideoCaptureRotation(self.pIRTCVideo, rotation)
 
     @ APITime
     def setVideoEncoderConfig(self, encoder_config: Union[VideoEncoderConfig, List[VideoEncoderConfig]]) -> int:
@@ -2095,6 +2263,29 @@ class RTCVideo:
         self.dll.byte_RTCVideo_stopVideoCapture(self.pIRTCVideo)
 
     @ APITime
+    def setVideoWatermark(self, stream_index: StreamIndex, image_path: str, watermark_config: WatermarkConfig) -> int:
+        if not self.pIRTCVideo:
+            return
+        imagePath = image_path.encode() if image_path != None else 0
+        self.dll.byte_RTCVideo_setVideoWatermark(self.pIRTCVideo, stream_index, imagePath, ctypes.byref(watermark_config.toStruct()))
+
+    @ APITime
+    def clearVideoWatermark(self, stream_index: StreamIndex) -> None:
+        if not self.pIRTCVideo:
+            return
+        self.dll.byte_RTCVideo_clearVideoWatermark(self.pIRTCVideo, stream_index)
+
+    @ APITime
+    def setDummyCaptureImagePath(self, file_path: str) -> int:
+        if not self.pIRTCVideo:
+            return
+        if SdkVersion < '3.46':
+            log.error(f'{SdkVersion} does not support this API')
+            return -1
+        filePath = file_path.encode() if file_path != None else 0
+        return self.dll.byte_RTCVideo_setDummyCaptureImagePath(self.pIRTCVideo, filePath)
+
+    @ APITime
     def setLocalVideoMirrorType(self, mirror: MirrorType) -> None:
         if not self.pIRTCVideo:
             return
@@ -2147,8 +2338,8 @@ class RTCVideo:
             sourceInfo.application = sSourceInfo.application.decode() if sSourceInfo.application else ''
             sourceInfo.pid = sSourceInfo.pid
             sourceInfo.primaryMonitor = sSourceInfo.primaryMonitor
-            sourceInfo.region_rect = Rectangle(x=sourceInfo.region_rect.x, y=sourceInfo.region_rect.y,
-                                               width=sourceInfo.region_rect.width, height=sourceInfo.region_rect.height)
+            sourceInfo.region_rect = Rectangle(x=sSourceInfo.region_rect.x, y=sSourceInfo.region_rect.y,
+                                               width=sSourceInfo.region_rect.width, height=sSourceInfo.region_rect.height)
             sourceInfo.source_id = sSourceInfo.source_id
             sourceInfo.source_name = sSourceInfo.source_name.decode() if sSourceInfo.source_name else ''
             sourceInfo.type = ScreenCaptureSourceType(sSourceInfo.type)
@@ -2247,7 +2438,7 @@ class RTCVideo:
         if not self.pIRTCVideo:
             return
         if SdkVersion < '3.46':
-            log.error('does not support this API')
+            log.error(f'{SdkVersion} does not support this API')
             return -1
         ret = self.dll.byte_RTCVideo_setRemoteVideoSuperResolution(self.pIRTCVideo, ctypes.byref(stream_key.toStruct()), mode)
         return ret
@@ -2296,6 +2487,13 @@ class RTCVideo:
                 self.rooms[room_id] = rtcRoom
             return rtcRoom
         else:
+            pass
+
+    def __convertEnum(self, adict: dict, key: str, enumType: MyIntEnum) -> None:
+        '''if enum value changed in C++, use this'''
+        try:
+            adict[key] = enumType(adict[key])
+        except Exception as ex:
             pass
 
     def __modifyEventIfHasEnum(self, event_name: str, event: dict) -> None:
@@ -2374,8 +2572,10 @@ class RTCVideo:
             event['reason'] = RemoteVideoStateChangeReason(event['reason'])
         elif event_name == 'onRemoteVideoSuperResolutionModeChanged':
             event['stream_key']['stream_index'] = StreamIndex(event['stream_key']['stream_index'])
-            event['mode'] = VideoSuperResolutionMode(event['mode'])
-            event['reason'] = VideoSuperResolutionModeChangedReason(event['reason'])
+            #event['mode'] = VideoSuperResolutionMode(event['mode'])
+            #event['reason'] = VideoSuperResolutionModeChangedReason(event['reason'])
+            self.__convertEnum(event, 'mode', VideoSuperResolutionMode)
+            self.__convertEnum(event, 'reason', VideoSuperResolutionModeChangedReason)
         elif event_name == 'onAudioFrameSendStateChanged':
             event['state'] = FirstFrameSendState(event['state'])
         elif event_name == 'onVideoFrameSendStateChanged':

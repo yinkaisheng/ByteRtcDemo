@@ -66,7 +66,7 @@ class AsyncTask():
         notifyFunc: callable function(taskId: int, msgId: int, args: Any) or a function list,
                     if it is a list, only the first function has arguments(taskId: int, msgId: int, args: Any),
                     others have no arguments.
-        in taskFunc, call signal.emit(taskId, msgId, args), msgId must > 0,
+        in taskFunc, call signal.emit((taskId, msgId, args)), msgId must > 0,
           then notifyFunc will be called in caller thread that spawned the new thread
         return int, a task id that starts with 1, corresponds to the new thread
         """

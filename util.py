@@ -4,6 +4,7 @@
 import os
 import io
 import sys
+import time
 import json
 import ctypes
 import pickle
@@ -14,30 +15,33 @@ import datetime
 from typing import Any, Callable, Deque, Dict, Iterator, List, Tuple
 
 
+IsPy38OrHigher = sys.version_info[:2] >= (3, 8)
 _SelfFileName = os.path.split(__file__)[1]
-
-
-def isPy38OrHigher():
-    return (sys.version_info[0] == 3 and sys.version_info[1] >= 8) or sys.version_info[0] > 3
 
 
 def printx(*values, sep: str = ' ', end: str = None, flush: bool = False, caller: bool = True) -> None:
     t = datetime.datetime.now()
     if caller:
-        frameCount = 1
-        while True:
-            frame = sys._getframe(frameCount)
-            #_, scriptFileName = os.path.split(frame.f_code.co_filename)
-            scriptFileName = os.path.basename(frame.f_code.co_filename)
-            if scriptFileName != _SelfFileName:
-                break
-            frameCount += 1
-        timestr = f'{t.year}-{t.month:02}-{t.day:02} {t.hour:02}:{t.minute:02}:{t.second:02}.{t.microsecond // 1000:03} L{frame.f_lineno} {frame.f_code.co_name}:'
+        frame = sys._getframe(1)
+        scriptFileName = os.path.basename(frame.f_code.co_filename)
+        selfObj = frame.f_locals.get('self', None)
+        if selfObj:
+            timestr = f'{t.year}-{t.month:02}-{t.day:02} {t.hour:02}:{t.minute:02}:{t.second:02}.{t.microsecond // 1000:03} L{frame.f_lineno} {selfObj.__class__.__name__}.{frame.f_code.co_name}:'
+        else:
+            timestr = f'{t.year}-{t.month:02}-{t.day:02} {t.hour:02}:{t.minute:02}:{t.second:02}.{t.microsecond // 1000:03} L{frame.f_lineno} {frame.f_code.co_name}:'
     else:
         timestr = f'{t.year}-{t.month:02}-{t.day:02} {t.hour:02}:{t.minute:02}:{t.second:02}.{t.microsecond // 1000:03}:'
     print(timestr, *values, sep=sep, end=end)
     if flush and sys.stdout:
         sys.stdout.flush()
+
+
+def millisecondsSinceEpoch() -> int:
+    return int(time.time() * 1000)
+
+
+def dateTimeFromMsEpoch(millisecondsSinceEpoch: int) -> datetime.datetime:
+    return datetime.datetime.fromtimestamp(millisecondsSinceEpoch / 1000)
 
 
 def setConsoleTitle(title: str) -> None:
@@ -59,14 +63,14 @@ def getStrBetween(src: str, left: str, right: str = None, start: int = 0, end: i
                 else:
                     return '', -1
             else:
-                return src[s1end:], s1end
+                return src[s1end:], s1end   #may be '', s1end
         else:
             return '', -1
     else:
         if right:
             s2start = src.find(right, end)
             if s2start >= 0:
-                return src[:s2start], 0
+                return src[:s2start], 0     #may be '', 0
             else:
                 return '', -1
         else:
