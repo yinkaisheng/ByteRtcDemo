@@ -171,7 +171,7 @@ class CodeDlg(QDialog):
     def __init__(self, parent: QObject = None):
         super(CodeDlg, self).__init__()
         self.mainWindow = parent
-        self.threadId = threading.currentThread().ident
+        self.threadId = threading.current_thread().ident
         self.setWindowFlags(Qt.Dialog | Qt.WindowMaximizeButtonHint | Qt.WindowCloseButtonHint)
         self.setWindowTitle(f"Python {sys.version.split()[0]} Code Executor")
         self.setWindowIcon(QIcon(IcoPath))
@@ -352,7 +352,7 @@ class CodeDlg(QDialog):
         return super(CodeDlg, self).close()
 
     def logCallbackHandler(self, output: str) -> None:
-        if threading.currentThread().ident == self.threadId:
+        if threading.current_thread().ident == self.threadId:
             self.outputEdit.appendPlainText(output)
         else:
             self.Signal.emit(output)

@@ -13,6 +13,11 @@ import logging as log
 import ctypes.wintypes
 from enum import Enum, IntEnum
 from typing import (Any, Callable, Dict, List, Iterable, Tuple, Union)
+if sys.stdout:
+    import colorama
+    colorama.init(autoreset=True)
+    from colorama import Fore
+
 
 ExePath = os.path.abspath(sys.argv[0])
 ExeDir, ExeNameWithExt = os.path.split(ExePath)
@@ -36,7 +41,7 @@ if not os.path.exists(LogDir):
     os.makedirs(LogDir)
 log.Formatter.default_msec_format = '%s.%03d'
 log.basicConfig(filename=os.path.join(LogDir, APILogPath), level=log.INFO,
-                format='%(asctime)s %(levelname)s %(filename)s L%(lineno)d T%(thread)d %(funcName)s: %(message)s')
+                format='%(asctime)s %(levelname)s %(filename)s,%(lineno)d T%(thread)d %(funcName)s: %(message)s')
 
 
 class LogFormatter(log.Formatter):
@@ -66,7 +71,7 @@ class GuiFilter(log.Filter):
 
 GuiStreamObj = GuiStream()
 __sh = log.StreamHandler(GuiStreamObj)
-__sh.setFormatter(LogFormatter('%(asctime)s %(filename)s L%(lineno)d T%(thread)d %(funcName)s: %(message)s'))
+__sh.setFormatter(LogFormatter('%(asctime)s %(filename)s,%(lineno)d T%(thread)d %(funcName)s: %(message)s'))
 __logFilter = GuiFilter()
 __sh.addFilter(__logFilter)
 log.getLogger().addHandler(__sh)
@@ -78,7 +83,7 @@ if sys.stdout:
             # print('custom handler called with\n', record)
 
     __stdsh = log.StreamHandler(sys.stdout)
-    __stdsh.setFormatter(LogFormatter('%(asctime)s %(filename)s L%(lineno)d T%(thread)d %(funcName)s: %(message)s'))
+    __stdsh.setFormatter(LogFormatter(f'%(asctime)s {Fore.GREEN}%(filename)s,%(lineno)d{Fore.RESET} T%(thread)d {Fore.GREEN}%(funcName)s{Fore.RESET}: %(message)s'))
     log.getLogger().addHandler(__stdsh)
 
 
