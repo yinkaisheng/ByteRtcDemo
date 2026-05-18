@@ -143,6 +143,8 @@ class _DllClient:
             self.dll.byte_createRTCVideoEventHandler.restype = ctypes.c_void_p
             self.dll.byte_createRTCRoomEventHandler.restype = ctypes.c_void_p
             self.dll.byte_createVideoFrameObserver.restype = ctypes.c_void_p
+            self.dll.byte_createLocalEncodedVideoFrameObserver.restype = ctypes.c_void_p
+            self.dll.byte_createRemoteEncodedVideoFrameObserver.restype = ctypes.c_void_p
             self.dll.byte_RTCVideo_registerLocalEncodedVideoFrameObserver.restype = ctypes.c_void_p
             self.dll.byte_RTCVideo_registerRemoteEncodedVideoFrameObserver.restype = ctypes.c_void_p
             self.dll.byte_createRTCVideo.restype = ctypes.c_void_p
