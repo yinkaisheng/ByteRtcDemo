@@ -29,7 +29,7 @@ import pyqt5AsyncTask as astask
 import util
 from bytertcsdk import bytertcsdk as sdk
 
-SDKVersion = 'main'
+SDKVersion = '3.54'
 UseQtDPIScaling = 0
 if UseQtDPIScaling:
     QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
@@ -789,7 +789,7 @@ class MainWindow(QMainWindow, astask.AsyncTask):
         self.RTCVideoEventHandler = {}
         self.RTCRoomEventHandler = {}
         self.initializeEventHandlers()
-        appId = ''
+        appId = self.configJson['appId'] # set a valid appId in MeetingDemo.config
         if not appId:
             raise ValueError('appId is required')
         self.delayCall(timeMs=100, func=self.initSDK, appId=appId)
@@ -914,7 +914,8 @@ class MainWindow(QMainWindow, astask.AsyncTask):
             wg.setSizePolicy(sp)
 
     def initSDK(self, appId: str) -> None:
-        sdk.selectSdkBinDir(f'binx86_{SDKVersion}')
+        bit = 'x64' if sys.maxsize > 0xFFFF_FFFF else 'x86'
+        sdk.selectSdkBinDir(f'bin{bit}_{SDKVersion}')
         binDirs = util.getFileText(os.path.join(sdk.SdkBinDirFull, '.dllpath')).splitlines()
         binDirs.extend(util.getFileText(os.path.join(sdk.ExeDir, sdk.ExeNameNoExt + '.dllpath')).splitlines())
         for binDir in binDirs:
